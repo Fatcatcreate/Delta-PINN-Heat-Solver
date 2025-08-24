@@ -309,7 +309,8 @@ class HeatVisualization3D:
 
     def plot_surface_heatmap(self, solution_data: Dict, domain: Domain3D,
                              title: str = "Surface Temperature Heatmap",
-                             save_name: str = "surface_heatmap"):
+                             save_name: str = "surface_heatmap",
+                             smoothing: float = 1.0):
         """Plot temperature heatmap on the 3D domain surface"""
         
         if not PLOTLY_AVAILABLE or not SKIMAGE_AVAILABLE:
@@ -349,7 +350,7 @@ class HeatVisualization3D:
             return None
         
         # Use RBFInterpolator for smooth interpolation
-        rbf_interp = RBFInterpolator(sol_grid_points[valid_indices], sol_values[valid_indices], kernel='thin_plate_spline', epsilon=1)
+        rbf_interp = RBFInterpolator(sol_grid_points[valid_indices], sol_values[valid_indices], kernel='thin_plate_spline', epsilon=smoothing)
         interpolated_temps = rbf_interp(verts)
 
         # Handle vertices where interpolation failed (e.g., outside the convex hull)

@@ -204,6 +204,15 @@ class InteractiveHeatDemo:
         
         self.t_max_label = ttk.Label(sim_frame, text=f"t_max = {self.t_max:.1f}")
         self.t_max_label.pack(anchor='w')
+
+        ttk.Label(sim_frame, text="Surface Smoothing:").pack(anchor='w', pady=(5, 0))
+        self.smoothing_var = tk.DoubleVar(value=1.0)
+        smoothing_scale = ttk.Scale(sim_frame, from_=1, to=100, variable=self.smoothing_var,
+                               orient='horizontal')
+        smoothing_scale.pack(fill='x', pady=(0, 5))
+        self.smoothing_label = ttk.Label(sim_frame, text=f"Smoothing = {self.smoothing_var.get():.1f}")
+        smoothing_scale.bind('<Motion>', self.on_smoothing_change)
+        self.smoothing_label.pack(anchor='w')
         
         # Time control
         time_frame = ttk.LabelFrame(parent, text="Time Control")
@@ -363,6 +372,10 @@ class InteractiveHeatDemo:
         # Update visualization if solutions exist
         if self.pinn_model or self.numerical_data:
             self.update_solution_visualization()
+
+    def on_smoothing_change(self, event=None):
+        """Handle smoothing slider change"""
+        self.smoothing_label.config(text=f"Smoothing = {self.smoothing_var.get():.1f}")
     
     def add_random_source(self):
         """Add randomly positioned heat source"""
@@ -724,10 +737,13 @@ class InteractiveHeatDemo:
             pinn_data = predict_solution_3d(self.pinn_model, self.domain, self.t_current,
                                           nx=48, ny=48, nz=48, device=device)
             
+            # Get smoothing value
+            smoothing_val = self.smoothing_var.get()
+
             # Generate plot
             save_name = f"interactive_3d_surface_{self.domain_type}"
             fig = self.viz.plot_surface_heatmap(pinn_data, self.domain, title=f"PINN 3D Surface Solution - {self.domain_type}",
-                                                  save_name=save_name)
+                                                  save_name=save_name, smoothing=smoothing_val)
 
             if fig:
                 # Open in web browser
