@@ -38,7 +38,7 @@ except ImportError:
     SKIMAGE_AVAILABLE = False
     print("Scikit-image not available. Surface plotting disabled.")
 
-from scipy.interpolate import griddata
+from scipy.interpolate import griddata, RBFInterpolator
 
 class HeatVisualization3D:
     """Advanced 3D visualization for heat diffusion"""
@@ -317,7 +317,7 @@ class HeatVisualization3D:
             return None
 
         # Generate a high-resolution grid for surface extraction
-        grid_data = domain.generate_grid(64, 64, 64)
+        grid_data = domain.generate_grid(256, 256, 256)
         X_dom, Y_dom, Z_dom = grid_data['X'], grid_data['Y'], grid_data['Z']
         sdf_vals = grid_data['sdf']
 
@@ -326,9 +326,9 @@ class HeatVisualization3D:
             verts, faces, _, _ = measure.marching_cubes(sdf_vals, level=0)
             # Scale vertices to the domain bounds
             bounds = domain.bounds()
-            verts[:, 0] = verts[:, 0] * (bounds[0][1] - bounds[0][0]) / (64 - 1) + bounds[0][0]
-            verts[:, 1] = verts[:, 1] * (bounds[1][1] - bounds[1][0]) / (64 - 1) + bounds[1][0]
-            verts[:, 2] = verts[:, 2] * (bounds[2][1] - bounds[2][0]) / (64 - 1) + bounds[2][0]
+            verts[:, 0] = verts[:, 0] * (bounds[0][1] - bounds[0][0]) / (256 - 1) + bounds[0][0]
+            verts[:, 1] = verts[:, 1] * (bounds[1][1] - bounds[1][0]) / (256 - 1) + bounds[1][0]
+            verts[:, 2] = verts[:, 2] * (bounds[2][1] - bounds[2][0]) / (256 - 1) + bounds[2][0]
         except (ValueError, RuntimeError) as e:
             print(f"Marching cubes failed: {e}. Cannot generate surface plot.")
             return None
@@ -347,16 +347,12 @@ class HeatVisualization3D:
         if not np.any(valid_indices):
             print("No valid solution data to interpolate.")
             return None
-            
-        interpolated_temps = griddata(sol_grid_points[valid_indices], sol_values[valid_indices], verts, method='linear')
+        
+        # Use RBFInterpolator for smooth interpolation
+        rbf_interp = RBFInterpolator(sol_grid_points[valid_indices], sol_values[valid_indices], kernel='thin_plate_spline', epsilon=1)
+        interpolated_temps = rbf_interp(verts)
 
         # Handle vertices where interpolation failed (e.g., outside the convex hull)
-        if np.isnan(interpolated_temps).any():
-            # Fallback to nearest neighbor for NaNs
-            nan_indices = np.isnan(interpolated_temps)
-            nearest_temps = griddata(sol_grid_points[valid_indices], sol_values[valid_indices], verts[nan_indices], method='nearest')
-            interpolated_temps[nan_indices] = nearest_temps
-
         if np.isnan(interpolated_temps).any():
             print("Could not interpolate temperatures for all surface vertices. Filling with 0.")
             interpolated_temps = np.nan_to_num(interpolated_temps, nan=0.0)
