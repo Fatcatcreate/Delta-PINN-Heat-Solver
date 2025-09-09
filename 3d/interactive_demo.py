@@ -16,6 +16,7 @@ import queue
 import time
 from typing import Dict, List, Tuple, Optional
 import warnings
+import os
 warnings.filterwarnings('ignore')
 
 try:
@@ -27,39 +28,46 @@ except ImportError:
 
 from domain_shapes import Domain3D, DomainFactory
 from visualization import HeatVisualization3D
+from convert_obj import convertObjToSdf
 
 if TORCH_AVAILABLE:
-    from delta_pinn_3d import DeltaPINN3D, train_delta_pinn_3d, predict_solution_3d
-    from numerical_solution import HeatSolver3D, solve_reference_problem
+    from delta_pinn_3d import DeltaPINN3D, trainDeltaPinn3d, predictSolution3d, ResidualBlock
+    from numerical_solution import HeatSolver3D, solveReferenceProblem
 
 class InteractiveHeatDemo:
     """Interactive 3D heat diffusion demonstration"""
     
     def __init__(self):
-        self.heat_sources = []
-        self.domain_type = 'sphere'
-        self.domain = DomainFactory.create_domain(self.domain_type)
+        self.heatSources = []
+        self.domainType = 'sphere'
+        self.domain = DomainFactory.createDomain(self.domainType)
         self.alpha = 0.01
-        self.t_current = 0.0
-        self.t_max = 1.0
-        self.is_running = False
-        self.is_training = False
+        self.tCurrent = 0.0
+        self.tMax = 1.0
+        self.isRunning = False
+        self.isTraining = False
         
         # Solution data
-        self.pinn_model = None
-        self.numerical_data = None
-        self.current_pinn_solution = None
+        self.pinnModel = None
+        self.numericalData = None
+        self.currentPinnSolution = None
         
         # Visualization
         self.viz = HeatVisualization3D('./demo_output')
         
         # Threading
-        self.task_queue = queue.Queue()
-        self.result_queue = queue.Queue()
+        self.taskQueue = queue.Queue()
+        self.resultQueue = queue.Queue()
         
-        self.setup_gui()
+        self.setupGui()
+
+    def getSanitizedDomainName(self):
+        """Returns a sanitized version of the domain name suitable for filenames."""
+        if self.domainType.endswith('.npy'):
+            return os.path.splitext(os.path.basename(self.domainType))[0]
+        return self.domainType
     
-    def setup_gui(self):
+    def setupGui(self):
         """Setup the main GUI interface"""
         self.root = tk.Tk()
         self.root.title("3D Heat Diffusion Interactive Demo")
@@ -67,221 +75,262 @@ class InteractiveHeatDemo:
         self.root.resizable(True, True)
         
         # Create main frames
-        control_container = ttk.Frame(self.root, width=300)
-        control_container.pack(side='left', fill='y', padx=10, pady=10)
+        controlContainer = ttk.Frame(self.root, width=300)
+        controlContainer.pack(side='left', fill='y', padx=10, pady=10)
 
-        canvas = tk.Canvas(control_container)
-        scrollbar = ttk.Scrollbar(control_container, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
+        canvas = tk.Canvas(controlContainer)
+        scrollbar = ttk.Scrollbar(controlContainer, orient="vertical", command=canvas.yview)
+        scrollableFrame = ttk.Frame(canvas)
 
-        scrollable_frame.bind(
+        scrollableWindow = canvas.create_window((0, 0), window=scrollableFrame, anchor="nw")
+
+        scrollableFrame.bind(
             "<Configure>",
             lambda e: canvas.configure(
                 scrollregion=canvas.bbox("all")
             )
         )
 
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.bind(
+            "<Configure>",
+            lambda e: canvas.itemconfig(scrollableWindow, width=e.width)
+        )
         canvas.configure(yscrollcommand=scrollbar.set)
 
-        def _on_mousewheel(event):
+        def onMousewheel(event):
             if event.num == 5 or event.delta == -120:
                 canvas.yview_scroll(1, "units")
             elif event.num == 4 or event.delta == 120:
                 canvas.yview_scroll(-1, "units")
 
-        self.root.bind_all("<MouseWheel>", _on_mousewheel)
-        self.root.bind_all("<Button-4>", _on_mousewheel)
-        self.root.bind_all("<Button-5>", _on_mousewheel)
+        self.root.bind_all("<MouseWheel>", onMousewheel)
+        self.root.bind_all("<Button-4>", onMousewheel)
+        self.root.bind_all("<Button-5>", onMousewheel)
 
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        viz_frame = ttk.Frame(self.root)
-        viz_frame.pack(side='right', fill='both', expand=True, padx=10, pady=10)
+        vizFrame = ttk.Frame(self.root)
+        vizFrame.pack(side='right', fill='both', expand=True, padx=10, pady=10)
         
-        self.setup_controls(scrollable_frame)
-        self.setup_visualization(viz_frame)
+        self.setupControls(scrollableFrame)
+        self.setupVisualization(vizFrame)
         
         # Start background worker
-        self.worker_thread = threading.Thread(target=self.background_worker, daemon=True)
-        self.worker_thread.start()
+        self.workerThread = threading.Thread(target=self.backgroundWorker, daemon=True)
+        self.workerThread.start()
         
         # Start GUI update timer
-        self.root.after(100, self.update_gui)
+        self.root.after(100, self.updateGui)
     
-    def setup_controls(self, parent):
+    def setupControls(self, parent):
         """Setup control panel"""
         
         # Title
-        title_label = ttk.Label(parent, text="3D Heat Diffusion Demo", font=('Arial', 16, 'bold'))
-        title_label.pack(pady=(0, 20))
+        titleLabel = ttk.Label(parent, text="3D Heat Diffusion Demo", font=('Arial', 16, 'bold'))
+        titleLabel.pack(pady=(0, 20))
         
         # Domain selection
-        domain_frame = ttk.LabelFrame(parent, text="Domain Configuration")
-        domain_frame.pack(fill='x', pady=(0, 10))
+        domainFrame = ttk.LabelFrame(parent, text="Domain Configuration")
+        domainFrame.pack(fill='x', pady=(0, 10))
         
-        ttk.Label(domain_frame, text="Domain Shape:").pack(anchor='w')
-        self.domain_var = tk.StringVar(value=self.domain_type)
-        domain_combo = ttk.Combobox(domain_frame, textvariable=self.domain_var,
+        ttk.Label(domainFrame, text="Domain Shape:").pack(anchor='w')
+        self.domainVar = tk.StringVar(value=self.domainType)
+        domainCombo = ttk.Combobox(domainFrame, textvariable=self.domainVar,
                                    values=['cube', 'sphere', 'lshape', 'torus', 'cylinder_holes'],
                                    state='readonly')
-        domain_combo.pack(fill='x', pady=(0, 5))
-        domain_combo.bind('<<ComboboxSelected>>', self.on_domain_change)
+        domainCombo.pack(fill='x', pady=(0, 5))
+        domainCombo.bind('<<ComboboxSelected>>', self.onDomainChange)
+
+        loadObjBtn = ttk.Button(domainFrame, text="Load .obj File", 
+                                command=self.load_obj_file)
+        loadObjBtn.pack(fill='x', pady=(5, 0))
         
+        ttk.Label(domainFrame, text="Voxelization Resolution:").pack(anchor='w', pady=(5, 0))
+        self.resolutionVar = tk.IntVar(value=128)
+        resolutionScale = ttk.Scale(domainFrame, from_=32, to=512, variable=self.resolutionVar,
+                               orient='horizontal')
+        resolutionScale.pack(fill='x', pady=(0, 5))
+        self.resolutionLabel = ttk.Label(domainFrame, text=f"Resolution = {self.resolutionVar.get()}")
+        resolutionScale.bind('<Motion>', lambda e: self.resolutionLabel.config(text=f"Resolution = {self.resolutionVar.get()}"))
+        self.resolutionLabel.pack(anchor='w')
+
         # Heat source controls
-        source_frame = ttk.LabelFrame(parent, text="Heat Sources")
-        source_frame.pack(fill='x', pady=(0, 10))
+        sourceFrame = ttk.LabelFrame(parent, text="Heat Sources")
+        sourceFrame.pack(fill='x', pady=(0, 10))
         
         # Add source button
-        # add_source_btn = ttk.Button(source_frame, text="Add Random Source", 
-        #                            command=self.add_random_source)
-        # add_source_btn.pack(fill='x', pady=(0, 5))
+        # addSourceBtn = ttk.Button(sourceFrame, text="Add Random Source", 
+        #                            command=self.addRandomSource)
+        # addSourceBtn.pack(fill='x', pady=(0, 5))
         
         # Manual source entry
-        manual_frame = ttk.Frame(source_frame)
-        manual_frame.pack(fill='x', pady=(0, 5))
+        manualFrame = ttk.Frame(sourceFrame)
+        manualFrame.pack(fill='x', pady=(0, 5))
         
-        ttk.Label(manual_frame, text="Position (x,y,z):").pack(anchor='w')
-        pos_frame = ttk.Frame(manual_frame)
-        pos_frame.pack(fill='x')
+        ttk.Label(manualFrame, text="Position (x,y,z):").pack(anchor='w')
+        posFrame = ttk.Frame(manualFrame)
+        posFrame.pack(fill='x')
         
-        self.x_entry = ttk.Entry(pos_frame, width=8)
-        self.x_entry.pack(side='left', padx=(0, 2))
-        self.x_entry.insert(0, "0.5")
+        self.xEntry = ttk.Entry(posFrame, width=8)
+        self.xEntry.pack(side='left', padx=(0, 2))
+        self.xEntry.insert(0, "0.5")
         
-        self.y_entry = ttk.Entry(pos_frame, width=8)
-        self.y_entry.pack(side='left', padx=2)
-        self.y_entry.insert(0, "0.5")
+        self.yEntry = ttk.Entry(posFrame, width=8)
+        self.yEntry.pack(side='left', padx=2)
+        self.yEntry.insert(0, "0.5")
         
-        self.z_entry = ttk.Entry(pos_frame, width=8)
-        self.z_entry.pack(side='left', padx=(2, 0))
-        self.z_entry.insert(0, "0.5")
+        self.zEntry = ttk.Entry(posFrame, width=8)
+        self.zEntry.pack(side='left', padx=(2, 0))
+        self.zEntry.insert(0, "0.5")
         
-        ttk.Label(manual_frame, text="Amplitude:").pack(anchor='w', pady=(5, 0))
-        self.amp_entry = ttk.Entry(manual_frame, width=10)
-        self.amp_entry.pack(fill='x')
-        self.amp_entry.insert(0, "1.0")
+        ttk.Label(manualFrame, text="Amplitude:").pack(anchor='w', pady=(5, 0))
+        self.ampEntry = ttk.Entry(manualFrame, width=10)
+        self.ampEntry.pack(fill='x')
+        self.ampEntry.insert(0, "1.0")
         
-        add_manual_btn = ttk.Button(manual_frame, text="Add Manual Source", 
-                                   command=self.add_manual_source)
-        add_manual_btn.pack(fill='x', pady=(5, 0))
+        addManualBtn = ttk.Button(manualFrame, text="Add Manual Source", 
+                                   command=self.addManualSource)
+        addManualBtn.pack(fill='x', pady=(5, 0))
         
         # Source list
-        ttk.Label(source_frame, text="Current Sources:").pack(anchor='w', pady=(10, 0))
-        self.source_listbox = tk.Listbox(source_frame, height=4)
-        self.source_listbox.pack(fill='x', pady=(0, 5))
+        ttk.Label(sourceFrame, text="Current Sources:").pack(anchor='w', pady=(10, 0))
+        self.sourceListbox = tk.Listbox(sourceFrame, height=4)
+        self.sourceListbox.pack(fill='x', pady=(0, 5))
         
         # Remove source button
-        remove_source_btn = ttk.Button(source_frame, text="Remove Selected", 
-                                      command=self.remove_source)
-        remove_source_btn.pack(fill='x', pady=(0, 5))
+        removeSourceBtn = ttk.Button(sourceFrame, text="Remove Selected", 
+                                      command=self.removeSource)
+        removeSourceBtn.pack(fill='x', pady=(0, 5))
         
-        clear_sources_btn = ttk.Button(source_frame, text="Clear All Sources", 
-                                      command=self.clear_sources)
-        clear_sources_btn.pack(fill='x')
+        clearSourcesBtn = ttk.Button(sourceFrame, text="Clear All Sources", 
+                                      command=self.clearSources)
+        clearSourcesBtn.pack(fill='x')
         
         # Simulation parameters
-        sim_frame = ttk.LabelFrame(parent, text="Simulation Parameters")
-        sim_frame.pack(fill='x', pady=(0, 10))
+        simFrame = ttk.LabelFrame(parent, text="Simulation Parameters")
+        simFrame.pack(fill='x', pady=(0, 10))
         
-        ttk.Label(sim_frame, text="Thermal Diffusivity (α):").pack(anchor='w')
-        self.alpha_var = tk.DoubleVar(value=self.alpha)
-        alpha_scale = ttk.Scale(sim_frame, from_=0.001, to=0.1, variable=self.alpha_var,
+        ttk.Label(simFrame, text="Thermal Diffusivity (α):").pack(anchor='w')
+        self.alphaVar = tk.DoubleVar(value=self.alpha)
+        alphaScale = ttk.Scale(simFrame, from_=0.001, to=0.1, variable=self.alphaVar,
                                orient='horizontal')
-        alpha_scale.pack(fill='x', pady=(0, 5))
-        alpha_scale.bind('<ButtonRelease-1>', self.on_alpha_change)
+        alphaScale.pack(fill='x', pady=(0, 5))
+        alphaScale.bind('<ButtonRelease-1>', self.onAlphaChange)
         
-        self.alpha_label = ttk.Label(sim_frame, text=f"α = {self.alpha:.3f}")
-        self.alpha_label.pack(anchor='w')
+        self.alphaLabel = ttk.Label(simFrame, text=f"α = {self.alpha:.3f}")
+        self.alphaLabel.pack(anchor='w')
         
-        ttk.Label(sim_frame, text="Max Time:").pack(anchor='w', pady=(5, 0))
-        self.t_max_var = tk.DoubleVar(value=self.t_max)
-        t_max_scale = ttk.Scale(sim_frame, from_=0.1, to=5.0, variable=self.t_max_var,
+        ttk.Label(simFrame, text="Max Time:").pack(anchor='w', pady=(5, 0))
+        self.tMaxVar = tk.DoubleVar(value=self.tMax)
+        tMaxScale = ttk.Scale(simFrame, from_=0.1, to=5.0, variable=self.tMaxVar,
                                orient='horizontal')
-        t_max_scale.pack(fill='x', pady=(0, 5))
-        t_max_scale.bind('<ButtonRelease-1>', self.on_t_max_change)
+        tMaxScale.pack(fill='x', pady=(0, 5))
+        tMaxScale.bind('<ButtonRelease-1>', self.onTMaxChange)
         
-        self.t_max_label = ttk.Label(sim_frame, text=f"t_max = {self.t_max:.1f}")
-        self.t_max_label.pack(anchor='w')
+        self.tMaxLabel = ttk.Label(simFrame, text=f"t_max = {self.tMax:.1f}")
+        self.tMaxLabel.pack(anchor='w')
 
-        ttk.Label(sim_frame, text="Surface Smoothing:").pack(anchor='w', pady=(5, 0))
-        self.smoothing_var = tk.DoubleVar(value=1.0)
-        smoothing_scale = ttk.Scale(sim_frame, from_=1, to=100, variable=self.smoothing_var,
+        ttk.Label(simFrame, text="Surface Smoothing:").pack(anchor='w', pady=(5, 0))
+        self.smoothingVar = tk.DoubleVar(value=1.0)
+        smoothingScale = ttk.Scale(simFrame, from_=1, to=100, variable=self.smoothingVar,
                                orient='horizontal')
-        smoothing_scale.pack(fill='x', pady=(0, 5))
-        self.smoothing_label = ttk.Label(sim_frame, text=f"Smoothing = {self.smoothing_var.get():.1f}")
-        smoothing_scale.bind('<Motion>', self.on_smoothing_change)
-        self.smoothing_label.pack(anchor='w')
+        smoothingScale.pack(fill='x', pady=(0, 5))
+        self.smoothingLabel = ttk.Label(simFrame, text=f"Smoothing = {self.smoothingVar.get():.1f}")
+        smoothingScale.bind('<Motion>', self.onSmoothingChange)
+        self.smoothingLabel.pack(anchor='w')
         
         # Time control
-        time_frame = ttk.LabelFrame(parent, text="Time Control")
-        time_frame.pack(fill='x', pady=(0, 10))
+        timeFrame = ttk.LabelFrame(parent, text="Time Control")
+        timeFrame.pack(fill='x', pady=(0, 10))
         
-        self.t_var = tk.DoubleVar(value=self.t_current)
-        self.time_scale = ttk.Scale(time_frame, from_=0.0, to=self.t_max, 
-                                   variable=self.t_var, orient='horizontal')
-        self.time_scale.pack(fill='x', pady=(0, 5))
-        self.time_scale.bind('<Motion>', self.on_time_change)
+        self.tVar = tk.DoubleVar(value=self.tCurrent)
+        self.timeScale = ttk.Scale(timeFrame, from_=0.0, to=self.tMax, 
+                                   variable=self.tVar, orient='horizontal')
+        self.timeScale.pack(fill='x', pady=(0, 5))
+        self.timeScale.bind('<Motion>', self.onTimeChange)
         
-        self.time_label = ttk.Label(time_frame, text=f"t = {self.t_current:.3f}")
-        self.time_label.pack(anchor='w')
+        self.timeLabel = ttk.Label(timeFrame, text=f"t = {self.tCurrent:.3f}")
+        self.timeLabel.pack(anchor='w')
         
         # Control buttons
-        button_frame = ttk.LabelFrame(parent, text="Simulation Control")
-        button_frame.pack(fill='x', pady=(0, 10))
+        buttonFrame = ttk.LabelFrame(parent, text="Simulation Control")
+        buttonFrame.pack(fill='x', pady=(0, 10))
         
-        self.train_btn = ttk.Button(button_frame, text="Train PINN", 
-                                   command=self.start_training)
-        self.train_btn.pack(fill='x', pady=(0, 5))
-        
-        self.solve_btn = ttk.Button(button_frame, text="Solve Numerical", 
-                                   command=self.start_numerical_solve)
-        self.solve_btn.pack(fill='x', pady=(0, 5))
-        
-        self.compare_btn = ttk.Button(button_frame, text="Compare Solutions", 
-                                     command=self.compare_solutions, state='disabled')
-        self.compare_btn.pack(fill='x', pady=(0, 5))
-        
-        self.animate_btn = ttk.Button(button_frame, text="Animate", 
-                                     command=self.start_animation, state='disabled')
-        self.animate_btn.pack(fill='x', pady=(0, 5))
-        
-        self.show_3d_btn = ttk.Button(button_frame, text="Show 3D Plot",
-                                     command=self.show_3d_plot, state='disabled')
-        self.show_3d_btn.pack(fill='x', pady=(0, 5))
+        self.trainBtn = ttk.Button(buttonFrame, text="Train PINN", 
+                                   command=self.startTraining)
+        self.trainBtn.pack(fill='x', pady=(0, 5))
 
-        self.show_surface_3d_btn = ttk.Button(button_frame, text="Show Surface 3D Plot",
-                                             command=self.show_surface_3d_plot, state='disabled')
-        self.show_surface_3d_btn.pack(fill='x', pady=(0, 5))
+        self.trainFullBtn = ttk.Button(buttonFrame, text="Train PINN (Full Quality)", 
+                                   command=self.startTrainingFull)
+        self.trainFullBtn.pack(fill='x', pady=(0, 5))
+        
+        self.solveBtn = ttk.Button(buttonFrame, text="Solve Numerical", 
+                                   command=self.startNumericalSolve)
+        self.solveBtn.pack(fill='x', pady=(0, 5))
+        
+        self.compareBtn = ttk.Button(buttonFrame, text="Compare Solutions", 
+                                     command=self.compareSolutions, state='disabled')
+        self.compareBtn.pack(fill='x', pady=(0, 5))
+        
+        self.animateBtn = ttk.Button(buttonFrame, text="Animate", 
+                                     command=self.startAnimation, state='disabled')
+        self.animateBtn.pack(fill='x', pady=(0, 5))
+        
+        self.show3dBtn = ttk.Button(buttonFrame, text="Show 3D Plot",
+                                     command=self.show3dPlot, state='disabled')
+        self.show3dBtn.pack(fill='x', pady=(0, 5))
+
+        self.showSurface3dBtn = ttk.Button(buttonFrame, text="Show Surface 3D Plot",
+                                             command=self.showSurface3dPlot, state='disabled')
+        self.showSurface3dBtn.pack(fill='x', pady=(0, 5))
+
+        # Model Management & Full Visualization
+        manageFrame = ttk.LabelFrame(parent, text="Model Management & Visualization")
+        manageFrame.pack(fill='x', pady=(0, 10))
+
+        self.loadBtn = ttk.Button(manageFrame, text="Load Model",
+                                    command=self.loadModel)
+        self.loadBtn.pack(fill='x', pady=(0, 5))
+
+        self.saveBtn = ttk.Button(manageFrame, text="Save Current Model",
+                                    command=self.saveModel, state='disabled')
+        self.saveBtn.pack(fill='x', pady=(0, 5))
+
+        self.genVizBtn = ttk.Button(manageFrame, text="Generate All Visualizations",
+                                    command=self.generateAllVisualizations, state='disabled')
+        self.genVizBtn.pack(fill='x', pady=(0, 5))
         
         # Export buttons
-        export_frame = ttk.LabelFrame(parent, text="Export")
-        export_frame.pack(fill='x', pady=(0, 10))
+        exportFrame = ttk.LabelFrame(parent, text="Export")
+        exportFrame.pack(fill='x', pady=(0, 10))
         
-        ttk.Button(export_frame, text="Save Configuration", 
-                  command=self.save_config).pack(fill='x', pady=(0, 2))
-        ttk.Button(export_frame, text="Load Configuration", 
-                  command=self.load_config).pack(fill='x', pady=(0, 2))
-        ttk.Button(export_frame, text="Export Visualization", 
-                  command=self.export_visualization).pack(fill='x')
+        ttk.Button(exportFrame, text="Save Configuration", 
+                  command=self.saveConfig).pack(fill='x', pady=(0, 2))
+        ttk.Button(exportFrame, text="Load Configuration", 
+                  command=self.loadConfig).pack(fill='x', pady=(0, 2))
+        ttk.Button(exportFrame, text="Export Visualization", 
+                  command=self.exportVisualization).pack(fill='x')
         
         # Status
-        status_frame = ttk.LabelFrame(parent, text="Status")
-        status_frame.pack(fill='both', expand=True)
+        statusFrame = ttk.LabelFrame(parent, text="Status")
+        statusFrame.pack(fill='both', expand=True)
         
-        self.status_text = tk.Text(status_frame, height=8, wrap='word')
-        status_scroll = ttk.Scrollbar(status_frame, orient='vertical', command=self.status_text.yview)
-        self.status_text.configure(yscrollcommand=status_scroll.set)
+        self.statusText = tk.Text(statusFrame, height=8, wrap='word')
+        statusScroll = ttk.Scrollbar(statusFrame, orient='vertical', command=self.statusText.yview)
+        self.statusText.configure(yscrollcommand=statusScroll.set)
         
-        self.status_text.pack(side='left', fill='both', expand=True)
-        status_scroll.pack(side='right', fill='y')
+        self.statusText.pack(side='left', fill='both', expand=True)
+        statusScroll.pack(side='right', fill='y')
         
-        self.log_message("Interactive Heat Diffusion Demo initialized.")
+        self.progressBar = ttk.Progressbar(statusFrame, orient='horizontal', mode='determinate')
+        self.progressBar.pack(side='bottom', fill='x')
+        
+        self.logMessage("Interactive Heat Diffusion Demo initialized.")
         if not TORCH_AVAILABLE:
-            self.log_message("WARNING: PyTorch not available. PINN functionality disabled.")
+            self.logMessage("WARNING: PyTorch not available. PINN functionality disabled.")
     
-    def setup_visualization(self, parent):
+    def setupVisualization(self, parent):
         """Setup visualization panel with matplotlib"""
         
         # Create matplotlib figure
@@ -297,179 +346,205 @@ class InteractiveHeatDemo:
         toolbar.update()
         
         # Initialize plots
-        self.update_visualization()
+        self.updateVisualization()
         
         # Mouse interaction for adding sources
-        self.canvas.mpl_connect('button_press_event', self.on_canvas_click)
+        self.canvas.mpl_connect('button_press_event', self.onCanvasClick)
     
-    def on_canvas_click(self, event):
+    def onCanvasClick(self, event):
         """Handle mouse clicks on visualization for adding heat sources"""
         if event.inaxes and event.button == 1 and event.dblclick:  # Double-click
             # Get click coordinates
-            x_click, y_click = event.xdata, event.ydata
+            xClick, yClick = event.xdata, event.ydata
             
             # Estimate z coordinate (middle of domain)
             bounds = self.domain.bounds()
-            z_click = (bounds[2][0] + bounds[2][1]) / 2
+            zClick = (bounds[2][0] + bounds[2][1]) / 2
             
             # Check if point is inside domain
-            if self.domain.is_inside(np.array([x_click]), np.array([y_click]), np.array([z_click]))[0]:
+            if self.domain.isInside(np.array([xClick]), np.array([yClick]), np.array([zClick]))[0]:
                 # Add heat source
-                self.heat_sources.append({
-                    'position': (x_click, y_click, z_click),
+                self.heatSources.append({
+                    'position': (xClick, yClick, zClick),
                     'amplitude': 1.0,
                     'sigma': 0.05
                 })
                 
-                self.update_source_list()
-                self.update_visualization()
-                self.log_message(f"Added heat source at ({x_click:.3f}, {y_click:.3f}, {z_click:.3f})")
+                self.updateSourceList()
+                self.updateVisualization()
+                self.logMessage(f"Added heat source at ({xClick:.3f}, {yClick:.3f}, {zClick:.3f})")
             else:
-                self.log_message("Cannot add heat source outside domain.")
+                self.logMessage("Cannot add heat source outside domain.")
     
-    def on_domain_change(self, event=None):
+    def onDomainChange(self, event=None):
         """Handle domain type change"""
-        new_domain = self.domain_var.get()
-        if new_domain != self.domain_type:
-            self.domain_type = new_domain
-            self.domain = DomainFactory.create_domain(self.domain_type)
-            self.log_message(f"Changed domain to: {self.domain_type}")
+        newDomain = self.domainVar.get()
+        if newDomain != self.domainType:
+            self.domainType = newDomain
+            self.domain = DomainFactory.createDomain(self.domainType)
+            self.logMessage(f"Changed domain to: {self.domainType}")
             
             # Clear solutions
-            self.pinn_model = None
-            self.numerical_data = None
-            self.compare_btn.config(state='disabled')
-            self.animate_btn.config(state='disabled')
+            self.pinnModel = None
+            self.numericalData = None
+            self.compareBtn.config(state='disabled')
+            self.animateBtn.config(state='disabled')
             
-            self.update_visualization()
+            self.updateVisualization()
+
+    def load_obj_file(self):
+        """Load an .obj file, convert it to a voxelized domain, and set it as the current domain."""
+        filepath = filedialog.askopenfilename(
+            title="Select .obj or .npy File",
+            filetypes=(("3D Files", "*.obj *.npy"), ("All files", "*.*" ))
+        )
+        if not filepath:
+            return
+
+        if filepath.endswith('.npy'):
+            self.resultQueue.put({'type': 'domain_change', 'domain_type': filepath})
+        elif filepath.endswith('.obj'):
+            output_npy_path = filepath.replace('.obj', '.npy')
+            resolution = self.resolutionVar.get()
+
+            def convert_and_load():
+                try:
+                    self.logMessage(f"Converting {filepath} to .npy with resolution {resolution}...")
+                    convertObjToSdf(filepath, output_npy_path, resolution=resolution)
+                    self.logMessage(f"Conversion complete. Saved to {output_npy_path}")
+                    self.resultQueue.put({'type': 'domain_change', 'domain_type': output_npy_path})
+                except Exception as e:
+                    self.resultQueue.put({'type': 'error', 'message': f"Failed to convert .obj file: {e}"})
+
+            threading.Thread(target=convert_and_load, daemon=True).start()
     
-    def on_alpha_change(self, event=None):
+    def onAlphaChange(self, event=None):
         """Handle thermal diffusivity change"""
-        self.alpha = self.alpha_var.get()
-        self.alpha_label.config(text=f"α = {self.alpha:.3f}")
+        self.alpha = self.alphaVar.get()
+        self.alphaLabel.config(text=f"α = {self.alpha:.3f}")
         
         # Invalidate numerical solution
-        self.numerical_data = None
-        self.compare_btn.config(state='disabled')
-        self.animate_btn.config(state='disabled')
+        self.numericalData = None
+        self.compareBtn.config(state='disabled')
+        self.animateBtn.config(state='disabled')
     
-    def on_t_max_change(self, event=None):
+    def onTMaxChange(self, event=None):
         """Handle max time change"""
-        self.t_max = self.t_max_var.get()
-        self.t_max_label.config(text=f"t_max = {self.t_max:.1f}")
-        self.time_scale.config(to=self.t_max)
+        self.tMax = self.tMaxVar.get()
+        self.tMaxLabel.config(text=f"t_max = {self.tMax:.1f}")
+        self.timeScale.config(to=self.tMax)
         
         # Invalidate solutions
-        self.numerical_data = None
-        self.compare_btn.config(state='disabled')
-        self.animate_btn.config(state='disabled')
+        self.numericalData = None
+        self.compareBtn.config(state='disabled')
+        self.animateBtn.config(state='disabled')
     
-    def on_time_change(self, event=None):
+    def onTimeChange(self, event=None):
         """Handle time slider change"""
-        self.t_current = self.t_var.get()
-        self.time_label.config(text=f"t = {self.t_current:.3f}")
+        self.tCurrent = self.tVar.get()
+        self.timeLabel.config(text=f"t = {self.tCurrent:.3f}")
         
         # Update visualization if solutions exist
-        if self.pinn_model or self.numerical_data:
-            self.update_solution_visualization()
+        if self.pinnModel or self.numericalData:
+            self.updateSolutionVisualization()
 
-    def on_smoothing_change(self, event=None):
+    def onSmoothingChange(self, event=None):
         """Handle smoothing slider change"""
-        self.smoothing_label.config(text=f"Smoothing = {self.smoothing_var.get():.1f}")
+        self.smoothingLabel.config(text=f"Smoothing = {self.smoothingVar.get():.1f}")
     
-    def add_random_source(self):
+    def addRandomSource(self):
         """Add randomly positioned heat source"""
         bounds = self.domain.bounds()
         
         # Generate random position within domain bounds (with margin)
-        x_pos = np.random.uniform(bounds[0][0] + 0.1, bounds[0][1] - 0.1)
-        y_pos = np.random.uniform(bounds[1][0] + 0.1, bounds[1][1] - 0.1)
-        z_pos = np.random.uniform(bounds[2][0] + 0.1, bounds[2][1] - 0.1)
+        xPos = np.random.uniform(bounds[0][0] + 0.1, bounds[0][1] - 0.1)
+        yPos = np.random.uniform(bounds[1][0] + 0.1, bounds[1][1] - 0.1)
+        zPos = np.random.uniform(bounds[2][0] + 0.1, bounds[2][1] - 0.1)
         
         # Verify position is inside domain
         attempts = 0
-        while not self.domain.is_inside(np.array([x_pos]), np.array([y_pos]), np.array([z_pos]))[0] and attempts < 20:
-            x_pos = np.random.uniform(bounds[0][0] + 0.1, bounds[0][1] - 0.1)
-            y_pos = np.random.uniform(bounds[1][0] + 0.1, bounds[1][1] - 0.1)
-            z_pos = np.random.uniform(bounds[2][0] + 0.1, bounds[2][1] - 0.1)
+        while not self.domain.isInside(np.array([xPos]), np.array([yPos]), np.array([zPos]))[0] and attempts < 20:
+            xPos = np.random.uniform(bounds[0][0] + 0.1, bounds[0][1] - 0.1)
+            yPos = np.random.uniform(bounds[1][0] + 0.1, bounds[1][1] - 0.1)
+            zPos = np.random.uniform(bounds[2][0] + 0.1, bounds[2][1] - 0.1)
             attempts += 1
         
         if attempts >= 20:
-            self.log_message("Could not find valid position for random source.")
+            self.logMessage("Could not find valid position for random source.")
             return
         
-        self.heat_sources.append({
-            'position': (x_pos, y_pos, z_pos),
+        self.heatSources.append({
+            'position': (xPos, yPos, zPos),
             'amplitude': np.random.uniform(0.5, 2.0),
             'sigma': np.random.uniform(0.03, 0.08)
         })
         
-        self.update_source_list()
-        self.update_visualization()
-        self.log_message(f"Added random heat source at ({x_pos:.3f}, {y_pos:.3f}, {z_pos:.3f})")
+        self.updateSourceList()
+        self.updateVisualization()
+        self.logMessage(f"Added random heat source at ({xPos:.3f}, {yPos:.3f}, {zPos:.3f})")
     
-    def add_manual_source(self):
+    def addManualSource(self):
         """Add manually specified heat source"""
         try:
-            x_pos = float(self.x_entry.get())
-            y_pos = float(self.y_entry.get())
-            z_pos = float(self.z_entry.get())
-            amplitude = float(self.amp_entry.get())
+            xPos = float(self.xEntry.get())
+            yPos = float(self.yEntry.get())
+            zPos = float(self.zEntry.get())
+            amplitude = float(self.ampEntry.get())
             
             # Check if position is inside domain
-            if self.domain.is_inside(np.array([x_pos]), np.array([y_pos]), np.array([z_pos]))[0]:
-                self.heat_sources.append({
-                    'position': (x_pos, y_pos, z_pos),
+            if self.domain.isInside(np.array([xPos]), np.array([yPos]), np.array([zPos]))[0]:
+                self.heatSources.append({
+                    'position': (xPos, yPos, zPos),
                     'amplitude': amplitude,
                     'sigma': 0.05
                 })
                 
-                self.update_source_list()
-                self.update_visualization()
-                self.log_message(f"Added manual heat source at ({x_pos:.3f}, {y_pos:.3f}, {z_pos:.3f})")
+                self.updateSourceList()
+                self.updateVisualization()
+                self.logMessage(f"Added manual heat source at ({xPos:.3f}, {yPos:.3f}, {zPos:.3f})")
             else:
                 messagebox.showerror("Error", "Position is outside the selected domain.")
                 
         except ValueError:
             messagebox.showerror("Error", "Please enter valid numeric values.")
     
-    def remove_source(self):
+    def removeSource(self):
         """Remove selected heat source"""
-        selection = self.source_listbox.curselection()
+        selection = self.sourceListbox.curselection()
         if selection:
             idx = selection[0]
-            removed_source = self.heat_sources.pop(idx)
-            self.update_source_list()
-            self.update_visualization()
-            pos = removed_source['position']
-            self.log_message(f"Removed heat source at ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})")
+            removedSource = self.heatSources.pop(idx)
+            self.updateSourceList()
+            self.updateVisualization()
+            pos = removedSource['position']
+            self.logMessage(f"Removed heat source at ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})")
     
-    def clear_sources(self):
+    def clearSources(self):
         """Clear all heat sources"""
-        if self.heat_sources:
-            self.heat_sources.clear()
-            self.update_source_list()
-            self.update_visualization()
-            self.log_message("Cleared all heat sources.")
+        if self.heatSources:
+            self.heatSources.clear()
+            self.updateSourceList()
+            self.updateVisualization()
+            self.logMessage("Cleared all heat sources.")
     
-    def update_source_list(self):
+    def updateSourceList(self):
         """Update the source listbox"""
-        self.source_listbox.delete(0, tk.END)
-        for i, source in enumerate(self.heat_sources):
+        self.sourceListbox.delete(0, tk.END)
+        for i, source in enumerate(self.heatSources):
             pos = source['position']
             amp = source['amplitude']
-            self.source_listbox.insert(tk.END, f"Source {i+1}: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f}) A={amp:.2f}")
+            self.sourceListbox.insert(tk.END, f"Source {i+1}: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f}) A={amp:.2f}")
     
-    def update_visualization(self):
+    def updateVisualization(self):
         """Update the main visualization"""
         self.fig.clear()
         
-        if not self.heat_sources:
+        if not self.heatSources:
             # Show empty domain
             ax = self.fig.add_subplot(111)
             ax.text(0.5, 0.5, 'Add heat sources to begin simulation\nDouble-click to add source', 
                    ha='center', va='center', transform=ax.transAxes, fontsize=12)
-            ax.set_title(f"Domain: {self.domain_type}")
+            ax.set_title(f"Domain: {self.domainType}")
             
         else:
             # Show domain with heat sources
@@ -477,18 +552,18 @@ class InteractiveHeatDemo:
             
             # Plot domain boundary (2D projection)
             bounds = self.domain.bounds()
-            x_test = np.linspace(bounds[0][0], bounds[0][1], 100)
-            y_test = np.linspace(bounds[1][0], bounds[1][1], 100)
-            X_test, Y_test = np.meshgrid(x_test, y_test)
-            Z_test = np.full_like(X_test, (bounds[2][0] + bounds[2][1]) / 2)
+            xTest = np.linspace(bounds[0][0], bounds[0][1], 100)
+            yTest = np.linspace(bounds[1][0], bounds[1][1], 100)
+            XTest, YTest = np.meshgrid(xTest, yTest)
+            ZTest = np.full_like(XTest, (bounds[2][0] + bounds[2][1]) / 2)
             
-            inside_mask = self.domain.is_inside(X_test, Y_test, Z_test)
-            ax.contour(X_test, Y_test, inside_mask.astype(float), levels=[0.5], colors='black', linewidths=2)
-            ax.contourf(X_test, Y_test, inside_mask.astype(float), levels=[0.5, 1.5], colors=['lightblue'], alpha=0.3)
+            insideMask = self.domain.isInside(XTest, YTest, ZTest)
+            ax.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colors='black', linewidths=2)
+            ax.contourf(XTest, YTest, insideMask.astype(float), levels=[0.5, 1.5], colors=['lightblue'], alpha=0.3)
             
             # Plot heat sources
             colors = ['red', 'orange', 'yellow', 'purple', 'green', 'cyan', 'magenta']
-            for i, source in enumerate(self.heat_sources):
+            for i, source in enumerate(self.heatSources):
                 x0, y0, z0 = source['position']
                 amplitude = source['amplitude']
                 sigma = source.get('sigma', 0.05)
@@ -504,29 +579,29 @@ class InteractiveHeatDemo:
             
             ax.set_xlabel('X')
             ax.set_ylabel('Y')
-            ax.set_title(f'Heat Sources - {self.domain_type}')
+            ax.set_title(f'Heat Sources - {self.domainType}')
             ax.legend()
             ax.set_aspect('equal')
             ax.grid(True, alpha=0.3)
         
         self.canvas.draw()
     
-    def update_solution_visualization(self):
+    def updateSolutionVisualization(self):
         """Update visualization with current solution"""
-        if not (self.pinn_model or self.numerical_data):
+        if not (self.pinnModel or self.numericalData):
             return
         
         self.fig.clear()
         
         # Create subplot layout
-        if self.pinn_model and self.numerical_data:
+        if self.pinnModel and self.numericalData:
             # Comparison view
             ax1 = self.fig.add_subplot(131)
             ax2 = self.fig.add_subplot(132)
             ax3 = self.fig.add_subplot(133)
             axes = [ax1, ax2, ax3]
             titles = ['PINN Solution', 'Numerical Solution', 'Absolute Error']
-        elif self.pinn_model:
+        elif self.pinnModel:
             # PINN only
             ax1 = self.fig.add_subplot(111)
             axes = [ax1]
@@ -540,54 +615,54 @@ class InteractiveHeatDemo:
         # Get solutions at current time
         solutions = []
         
-        if self.pinn_model:
+        if self.pinnModel:
             try:
                 device = 'cpu'  # Force CPU for GUI responsiveness
-                pinn_sol = predict_solution_3d(self.pinn_model, self.domain, self.t_current,
+                pinnSol = predictSolution3d(self.pinnModel, self.domain, self.tCurrent,
                                              nx=32, ny=32, nz=32, device=device)
-                solutions.append(pinn_sol['u'])
+                solutions.append(pinnSol['u'])
             except Exception as e:
-                self.log_message(f"Error predicting PINN solution: {e}")
+                self.logMessage(f"Error predicting PINN solution: {e}")
                 return
         
-        if self.numerical_data:
+        if self.numericalData:
             # Find closest time
-            time_idx = np.argmin(np.abs(self.numerical_data['times'] - self.t_current))
-            num_sol = self.numerical_data['solutions'][time_idx]
+            timeIdx = np.argmin(np.abs(self.numericalData['times'] - self.tCurrent))
+            numSol = self.numericalData['solutions'][timeIdx]
             
             # Convert to grid
-            if len(num_sol.shape) == 1:
-                grid_shape = (32, 32, 32)  # Match PINN resolution
+            if len(numSol.shape) == 1:
+                gridShape = (32, 32, 32)  # Match PINN resolution
                 X = np.linspace(0, 1, 32)
                 Y = np.linspace(0, 1, 32)
                 Z = np.linspace(0, 1, 32)
                 XX, YY, ZZ = np.meshgrid(X, Y, Z, indexing='ij')
                 
-                num_sol_grid = np.full(grid_shape, np.nan)
+                numSolGrid = np.full(gridShape, np.nan)
                 # Interpolate or use available data
-                if 'interior_indices' in self.numerical_data:
+                if 'interior_indices' in self.numericalData:
                     # Map to new grid (simplified)
-                    interior_idx = self.numerical_data['interior_indices']
-                    for i, val in enumerate(num_sol):
-                        if i < len(interior_idx[0]):
-                            ii, jj, kk = interior_idx[0][i], interior_idx[1][i], interior_idx[2][i]
+                    interiorIdx = self.numericalData['interior_indices']
+                    for i, val in enumerate(numSol):
+                        if i < len(interiorIdx[0]):
+                            ii, jj, kk = interiorIdx[0][i], interiorIdx[1][i], interiorIdx[2][i]
                             # Scale indices to match new grid
-                            scale_x = (grid_shape[0] - 1) / (self.numerical_data['grid_shape'][0] - 1)
-                            scale_y = (grid_shape[1] - 1) / (self.numerical_data['grid_shape'][1] - 1)
-                            scale_z = (grid_shape[2] - 1) / (self.numerical_data['grid_shape'][2] - 1)
+                            scaleX = (gridShape[0] - 1) / (self.numericalData['grid_shape'][0] - 1)
+                            scaleY = (gridShape[1] - 1) / (self.numericalData['grid_shape'][1] - 1)
+                            scaleZ = (gridShape[2] - 1) / (self.numericalData['grid_shape'][2] - 1)
                             
-                            new_i = int(ii * scale_x)
-                            new_j = int(jj * scale_y)
-                            new_k = int(kk * scale_z)
+                            newI = int(ii * scaleX)
+                            newJ = int(jj * scaleY)
+                            newK = int(kk * scaleZ)
                             
-                            if (0 <= new_i < grid_shape[0] and 
-                                0 <= new_j < grid_shape[1] and 
-                                0 <= new_k < grid_shape[2]):
-                                num_sol_grid[new_i, new_j, new_k] = val
+                            if (0 <= newI < gridShape[0] and 
+                                0 <= newJ < gridShape[1] and 
+                                0 <= newK < gridShape[2]):
+                                numSolGrid[newI, newJ, newK] = val
                 
-                solutions.append(num_sol_grid)
+                solutions.append(numSolGrid)
             else:
-                solutions.append(num_sol)
+                solutions.append(numSol)
         
         # Plot solutions
         for i, (ax, title, sol) in enumerate(zip(axes, titles, solutions)):
@@ -598,15 +673,15 @@ class InteractiveHeatDemo:
                 cmap = 'hot'
             
             # Plot middle XY slice
-            mid_z = sol.shape[2] // 2
-            slice_data = sol[:, :, mid_z]
+            midZ = sol.shape[2] // 2
+            sliceData = sol[:, :, midZ]
             
             # Create coordinate arrays
-            x_coords = np.linspace(0, 1, sol.shape[0])
-            y_coords = np.linspace(0, 1, sol.shape[1])
+            xCoords = np.linspace(0, 1, sol.shape[0])
+            yCoords = np.linspace(0, 1, sol.shape[1])
             
-            im = ax.contourf(x_coords, y_coords, slice_data.T, levels=20, cmap=cmap)
-            ax.set_title(f'{title}\nt = {self.t_current:.3f}')
+            im = ax.contourf(xCoords, yCoords, sliceData.T, levels=20, cmap=cmap)
+            ax.set_title(f'{title}\nt = {self.tCurrent:.3f}')
             ax.set_xlabel('X')
             ax.set_ylabel('Y')
             ax.set_aspect('equal')
@@ -617,183 +692,221 @@ class InteractiveHeatDemo:
         self.fig.tight_layout()
         self.canvas.draw()
     
-    def start_training(self):
+    def startTraining(self):
         """Start PINN training in background"""
         if not TORCH_AVAILABLE:
             messagebox.showerror("Error", "PyTorch not available. Cannot train PINN.")
             return
         
-        if not self.heat_sources:
+        if not self.heatSources:
             messagebox.showerror("Error", "Please add at least one heat source before training.")
             return
         
-        if self.is_training:
+        if self.isTraining:
             messagebox.showwarning("Warning", "Training is already in progress.")
             return
         
-        self.log_message("Starting PINN training...")
-        self.train_btn.config(state='disabled', text='Training...')
-        self.is_training = True
+        self.logMessage("Starting PINN training (1000 epochs)...")
+        self.trainBtn.config(state='disabled', text='Training...')
+        self.trainFullBtn.config(state='disabled')
+        self.isTraining = True
         
-        # Add training task to queue
-        self.task_queue.put({
+        self.taskQueue.put({
             'type': 'train_pinn',
-            'domain_type': self.domain_type,
-            'heat_sources': self.heat_sources.copy(),
-            'alpha': self.alpha
+            'quality': 'quick',
+            'domain_type': self.domainType,
+            'heat_sources': self.heatSources.copy(),
+            'alpha': self.alpha,
+            'progress_callback': self.updateProgress
+        })
+
+    def startTrainingFull(self):
+        """Start a full-quality PINN training"""
+        if not TORCH_AVAILABLE:
+            messagebox.showerror("Error", "PyTorch not available. Cannot train PINN.")
+            return
+        
+        if not self.heatSources:
+            messagebox.showerror("Error", "Please add at least one heat source before training.")
+            return
+
+        if self.isTraining:
+            messagebox.showwarning("Warning", "A training process is already running.")
+            return
+
+        self.logMessage("Confirmation dialog for full training initiated.")
+        if not messagebox.askyesno("Confirmation", "This will start a full-quality training (20,000 epochs) that may take a long time. Are you sure?"):
+            self.logMessage("Full training cancelled by user.")
+            return
+
+        self.logMessage("Starting PINN training (Full Quality)... This will take a while.")
+        self.trainBtn.config(state='disabled')
+        self.trainFullBtn.config(state='disabled', text='Training...')
+        self.isTraining = True
+        
+        self.taskQueue.put({
+            'type': 'train_pinn',
+            'quality': 'full',
+            'domain_type': self.domainType,
+            'heat_sources': self.heatSources.copy(),
+            'alpha': self.alpha,
+            'progress_callback': self.updateProgress
         })
     
-    def start_numerical_solve(self):
+    def startNumericalSolve(self):
         """Start numerical solving in background"""
-        if not self.heat_sources:
+        if not self.heatSources:
             messagebox.showerror("Error", "Please add at least one heat source before solving.")
             return
         
-        self.log_message("Starting numerical solution...")
-        self.solve_btn.config(state='disabled', text='Solving...')
+        self.logMessage("Starting numerical solution...")
+        self.solveBtn.config(state='disabled', text='Solving...')
         
         # Add numerical task to queue
-        self.task_queue.put({
+        self.taskQueue.put({
             'type': 'solve_numerical',
-            'domain_type': self.domain_type,
-            'heat_sources': self.heat_sources.copy(),
+            'domain_type': self.domainType,
+            'heat_sources': self.heatSources.copy(),
             'alpha': self.alpha,
-            't_final': self.t_max
+            't_final': self.tMax
         })
     
-    def compare_solutions(self):
+    def compareSolutions(self):
         """Compare PINN and numerical solutions"""
-        if not (self.pinn_model and self.numerical_data):
+        if not (self.pinnModel and self.numericalData):
             messagebox.showwarning("Warning", "Both PINN and numerical solutions are required for comparison.")
             return
         
-        self.log_message("Creating detailed comparison...")
+        self.logMessage("Creating detailed comparison...")
         
         # Use visualization module for detailed comparison
         try:
             # Create temporary PINN solution data
             device = 'cpu'
-            pinn_data = predict_solution_3d(self.pinn_model, self.domain, self.t_current,
-                                          nx=48, ny=48, nz=48, device=device)
+            pinnData = predictSolution3d(self.pinnModel, self.domain, self.tCurrent,
+                                          nX=48, nY=48, nZ=48, device=device)
             
             # Find closest numerical time
-            time_idx = np.argmin(np.abs(self.numerical_data['times'] - self.t_current))
+            timeIdx = np.argmin(np.abs(self.numericalData['times'] - self.tCurrent))
             
             # Create comparison plot
-            self.viz.create_comparison_plot(pinn_data, self.numerical_data, time_idx,
-                                          save_name=f"comparison_{self.domain_type}")
+            self.viz.createComparisonPlot(pinnData, self.numericalData, timeIdx,
+                                          saveName=f"comparison_{self.getSanitizedDomainName()}")
             
-            self.log_message("Comparison saved to ./demo_output/")
+            self.logMessage("Comparison saved to ./demo_output/")
             
         except Exception as e:
-            self.log_message(f"Error creating comparison: {e}")
+            self.logMessage(f"Error creating comparison: {e}")
     
-    def show_3d_plot(self):
+    def show3dPlot(self):
         """Generate and show an interactive 3D plot"""
-        if not self.pinn_model:
+        if not self.pinnModel:
             messagebox.showwarning("Warning", "A trained PINN model is required for 3D visualization.")
             return
 
-        self.log_message("Generating interactive 3D plot with volumetric rendering...")
+        self.logMessage("Generating interactive 3D plot with volumetric rendering...")
 
         try:
-            # Predict solution
-            device = 'cpu'
-            pinn_data = predict_solution_3d(self.pinn_model, self.domain, self.t_current,
-                                          nx=48, ny=48, nz=48, device=device)
-            
-            u_sol = pinn_data['u']
-            self.log_message(f"Predicted solution min: {np.nanmin(u_sol)}, max: {np.nanmax(u_sol)}")
-
             # Generate plot
-            save_name = f"interactive_3d_{self.domain_type}"
-            fig = self.viz.plot_volumetric_rendering(pinn_data, self.domain, title=f"PINN 3D Solution - {self.domain_type}",
-                                                     save_name=save_name)
+            saveName = f"interactive_3d_{self.getSanitizedDomainName()}"
+            fig = self.viz.plotVolumetricRendering(self.pinnModel, self.domain, 
+                                                     tMax=self.tMax, timeSteps=20,
+                                                     title=f"PINN 3D Solution - {self.domainType}",
+                                                     saveName=saveName)
 
             if fig:
                 # Open in web browser
                 import webbrowser
                 import os
-                output_path = os.path.join(self.viz.save_dir, f"{save_name}.html")
-                webbrowser.open(f"file://{os.path.abspath(output_path)}")
-                self.log_message(f"3D plot opened in web browser.")
+                outputPath = os.path.join(self.viz.saveDir, f"{saveName}.html")
+                webbrowser.open(f"file://{os.path.abspath(outputPath)}")
+                self.logMessage(f"3D plot opened in web browser.")
             else:
-                self.log_message("Failed to generate 3D plot (Plotly may not be available).")
+                self.logMessage("Failed to generate 3D plot (Plotly may not be available).")
 
         except Exception as e:
-            self.log_message(f"Error creating 3D plot: {e}")
+            self.logMessage(f"Error creating 3D plot: {e}")
 
-    def show_surface_3d_plot(self):
+    def showSurface3dPlot(self):
         """Generate and show an interactive 3D surface plot"""
-        if not self.pinn_model:
+        if not self.pinnModel:
             messagebox.showwarning("Warning", "A trained PINN model is required for 3D visualization.")
             return
 
-        self.log_message("Generating interactive 3D surface plot...")
+        self.logMessage("Generating interactive 3D surface plot...")
 
         try:
-            # Predict solution
-            device = 'cpu'
-            pinn_data = predict_solution_3d(self.pinn_model, self.domain, self.t_current,
-                                          nx=48, ny=48, nz=48, device=device)
-            
             # Get smoothing value
-            smoothing_val = self.smoothing_var.get()
+            smoothingVal = self.smoothingVar.get()
 
             # Generate plot
-            save_name = f"interactive_3d_surface_{self.domain_type}"
-            fig = self.viz.plot_surface_heatmap(pinn_data, self.domain, title=f"PINN 3D Surface Solution - {self.domain_type}",
-                                                  save_name=save_name, smoothing=smoothing_val)
+            saveName = f"interactive_3d_surface_{self.getSanitizedDomainName()}"
+            fig = self.viz.plotSurfaceHeatmap(self.pinnModel, self.domain, 
+                                                  tMax=self.tMax, timeSteps=20,
+                                                  title=f"PINN 3D Surface Solution - {self.domainType}",
+                                                  saveName=saveName, smoothing=smoothingVal)
 
             if fig:
                 # Open in web browser
                 import webbrowser
                 import os
-                output_path = os.path.join(self.viz.save_dir, f"{save_name}.html")
-                webbrowser.open(f"file://{os.path.abspath(output_path)}")
-                self.log_message(f"3D surface plot opened in web browser.")
+                outputPath = os.path.join(self.viz.saveDir, f"{saveName}.html")
+                webbrowser.open(f"file://{os.path.abspath(outputPath)}")
+                self.logMessage(f"3D surface plot opened in web browser.")
             else:
-                self.log_message("Failed to generate 3D surface plot.")
+                self.logMessage("Failed to generate 3D surface plot.")
 
         except Exception as e:
-            self.log_message(f"Error creating 3D surface plot: {e}")
+            self.logMessage(f"Error creating 3D surface plot: {e}")
 
-    def start_animation(self):
+    def startAnimation(self):
         """Start animation of time evolution"""
-        if not self.numerical_data:
+        if not self.numericalData:
             messagebox.showwarning("Warning", "Numerical solution required for animation.")
             return
         
-        self.log_message("Creating animation...")
+        self.logMessage("Creating animation...")
         
         try:
-            self.viz.create_animation(self.numerical_data, fps=5,
-                                    title=f"Heat Diffusion - {self.domain_type}",
-                                    save_name=f"animation_{self.domain_type}")
+            self.viz.createAnimation(self.numericalData, fps=5,
+                                    title=f"Heat Diffusion - {self.domainType}",
+                                    saveName=f"animation_{self.getSanitizedDomainName()}")
             
-            self.log_message("Animation saved to ./demo_output/")
+            self.logMessage("Animation saved to ./demo_output/")
             
         except Exception as e:
-            self.log_message(f"Error creating animation: {e}")
+            self.logMessage(f"Error creating animation: {e}")
     
-    def background_worker(self):
+    def backgroundWorker(self):
         """Background worker thread for computationally intensive tasks"""
         while True:
             try:
-                task = self.task_queue.get(timeout=1.0)
+                task = self.taskQueue.get(timeout=1.0)
                 
                 if task['type'] == 'train_pinn':
-                    self.execute_training(task)
+                    self.executeTraining(task)
                 elif task['type'] == 'solve_numerical':
-                    self.execute_numerical_solve(task)
+                    self.executeNumericalSolve(task)
+                elif task['type'] == 'domain_change':
+                    self.domainType = task['domain_type']
+                    self.domain = DomainFactory.createDomain(self.domainType)
+                    self.logMessage(f"Changed domain to: {self.domainType}")
+                    
+                    # Clear solutions
+                    self.pinnModel = None
+                    self.numericalData = None
+                    self.compareBtn.config(state='disabled')
+                    self.animateBtn.config(state='disabled')
+                    
+                    self.updateVisualization()
                     
             except queue.Empty:
                 continue
             except Exception as e:
-                self.result_queue.put({'type': 'error', 'message': str(e)})
+                self.resultQueue.put({'type': 'error', 'message': str(e)})
     
-    def execute_training(self, task):
-        """Execute PINN training"""
+    def executeTraining(self, task):
+        """Execute PINN training based on quality setting"""
         try:
             # Import here to avoid GUI thread issues
             import argparse
@@ -801,95 +914,106 @@ class InteractiveHeatDemo:
             # Create minimal args for training
             class Args:
                 def __init__(self):
-                    self.hidden_size = 64  # Smaller for speed
-                    self.num_layers = 4
-                    self.use_fourier = True
-                    self.fourier_scale = 1.0
-                    self.use_residual = True
-                    self.epochs = 1000  # Fewer epochs for demo
+                    quality = task.get('quality', 'quick')
+                    
+                    if quality == 'full':
+                        self.hiddenSize = 128
+                        self.numLayers = 6
+                        self.epochs = 20000
+                        self.nPde = 10000
+                        self.nBc = 2500
+                        self.nIc = 2500
+                        self.logInterval = 500
+                    else: # Quick (default)
+                        self.hiddenSize = 64
+                        self.numLayers = 4
+                        self.epochs = 1000
+                        self.nPde = 2000
+                        self.nBc = 500
+                        self.nIc = 500
+                        self.logInterval = 200
+
+                    self.useFourier = True
+                    self.fourierScale = 1.0
+                    self.useResidual = True
                     self.lr = 1e-3
-                    self.warmup_epochs = 200
+                    self.warmupEpochs = 200
                     self.alpha = task['alpha']
-                    self.n_pde = 2000  # Smaller for speed
-                    self.n_bc = 500
-                    self.n_ic = 500
                     self.device = 'cpu'  # Force CPU for stability
                     self.seed = 1337
-                    self.save_dir = './demo_output'
-                    self.log_interval = 200
+                    self.saveDir = './demo_output'
             
             args = Args()
             
             # Create domain
-            domain = DomainFactory.create_domain(task['domain_type'])
+            domain = DomainFactory.createDomain(task['domain_type'])
             
             # Train model
-            model = train_delta_pinn_3d(args, domain, task['heat_sources'])
+            model = trainDeltaPinn3d(args, domain, task['heat_sources'], progressCallback=task.get('progress_callback'))
             
-            self.result_queue.put({
+            self.resultQueue.put({
                 'type': 'training_complete',
-                'model': model
+                'model': model,
+                'quality': task.get('quality', 'quick')
             })
             
         except Exception as e:
-            self.result_queue.put({
+            self.resultQueue.put({
                 'type': 'training_error',
                 'message': str(e)
             })
     
-    def execute_numerical_solve(self, task):
+    def executeNumericalSolve(self, task):
         """Execute numerical solution"""
         try:
             # Solve numerical problem
-            solution = solve_reference_problem(
-                domain_type=task['domain_type'],
-                heat_sources=task['heat_sources'],
-                nx=24,  # Smaller grid for speed
+            solution = solveReferenceProblem(
+                domainType=task['domain_type'],
+                heatSources=task['heat_sources'],
+                nX=24,  # Smaller grid for speed
                 alpha=task['alpha'],
-                t_final=task['t_final'],
+                tFinal=task['t_final'],
                 method='implicit',
-                save_dir='./demo_output'
+                saveDir='./demo_output'
             )
             
-            self.result_queue.put({
+            self.resultQueue.put({
                 'type': 'numerical_complete',
                 'solution': solution
             })
             
         except Exception as e:
-            self.result_queue.put({
+            self.resultQueue.put({
                 'type': 'numerical_error',
                 'message': str(e)
             })
     
-    def save_config(self):
+    def saveConfig(self):
         """Save current configuration"""
         import json
         
         config = {
-            'domain_type': self.domain_type,
-            'heat_sources': self.heat_sources,
+            'domain_type': self.domainType,
+            'heat_sources': self.heatSources,
             'alpha': self.alpha,
-            't_max': self.t_max
+            't_max': self.tMax
         }
         
         filename = filedialog.asksaveasfilename(
             defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*" )])
         
         if filename:
             with open(filename, 'w') as f:
                 json.dump(config, f, indent=2)
-            self.log_message(f"Configuration saved to {filename}")
+            self.logMessage(f"Configuration saved to {filename}")
     
-    def load_config(self):
+    def loadConfig(self):
         """Load configuration from file"""
         import json
         
         filename = filedialog.askopenfilename(
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*" )])
         
         if filename:
             try:
@@ -897,92 +1021,258 @@ class InteractiveHeatDemo:
                     config = json.load(f)
                 
                 # Apply configuration
-                self.domain_type = config.get('domain_type', 'sphere')
-                self.domain_var.set(self.domain_type)
-                self.domain = DomainFactory.create_domain(self.domain_type)
+                self.domainType = config.get('domain_type', 'sphere')
+                self.domainVar.set(self.domainType)
+                self.domain = DomainFactory.createDomain(self.domainType)
                 
-                self.heat_sources = config.get('heat_sources', [])
+                self.heatSources = config.get('heat_sources', [])
                 self.alpha = config.get('alpha', 0.01)
-                self.t_max = config.get('t_max', 1.0)
+                self.tMax = config.get('t_max', 1.0)
                 
                 # Update GUI
-                self.alpha_var.set(self.alpha)
-                self.t_max_var.set(self.t_max)
-                self.alpha_label.config(text=f"α = {self.alpha:.3f}")
-                self.t_max_label.config(text=f"t_max = {self.t_max:.1f}")
-                self.time_scale.config(to=self.t_max)
+                self.alphaVar.set(self.alpha)
+                self.tMaxVar.set(self.tMax)
+                self.alphaLabel.config(text=f"α = {self.alpha:.3f}")
+                self.tMaxLabel.config(text=f"t_max = {self.tMax:.1f}")
+                self.timeScale.config(to=self.tMax)
                 
-                self.update_source_list()
-                self.update_visualization()
+                self.updateSourceList()
+                self.updateVisualization()
                 
-                self.log_message(f"Configuration loaded from {filename}")
+                self.logMessage(f"Configuration loaded from {filename}")
                 
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load configuration: {e}")
     
-    def export_visualization(self):
+    def exportVisualization(self):
         """Export current visualization"""
         filename = filedialog.asksaveasfilename(
             defaultextension=".png",
-            filetypes=[("PNG files", "*.png"), ("PDF files", "*.pdf"), ("All files", "*.*")]
-        )
+            filetypes=[("PNG files", "*.png"), ("PDF files", "*.pdf"), ("All files", "*.*" )])
         
         if filename:
             self.fig.savefig(filename, dpi=150, bbox_inches='tight')
-            self.log_message(f"Visualization exported to {filename}")
+            self.logMessage(f"Visualization exported to {filename}")
+
+    def loadModel(self):
+        """Load a pre-trained model from a file."""
+        if self.isTraining:
+            messagebox.showwarning("Warning", "Cannot load a model while training is in progress.")
+            return
+
+        filename = filedialog.askopenfilename(
+            title="Select a Model File",
+            filetypes=[("PyTorch Models", "*.pt"), ("All files", "*.*" )])
+
+        if not filename:
+            return
+
+        try:
+            self.logMessage(f"Loading model from {filename}...")
+            # We need to import the load function
+            from delta_pinn_3d import loadTrainedModel
+            model, checkpoint = loadTrainedModel(filename, device='cpu')
+
+            self.pinnModel = model
+            
+            # Restore state from the loaded model
+            self.domainType = checkpoint.get('domain_name', 'sphere')
+            self.heatSources = checkpoint.get('heat_sources', [])
+            args = checkpoint.get('args', {})
+            self.alpha = args.get('alpha', 0.01)
+
+            # Update GUI to reflect loaded state
+            self.domainVar.set(self.domainType)
+            self.domain = DomainFactory.createDomain(self.domainType)
+            self.alphaVar.set(self.alpha)
+            self.alphaLabel.config(text=f"α = {self.alpha:.3f}")
+            self.updateSourceList()
+            self.updateVisualization()
+            self.updateSolutionVisualization()
+
+            # Enable buttons
+            self.saveBtn.config(state='normal')
+            self.genVizBtn.config(state='normal')
+            self.show3dBtn.config(state='normal')
+            self.showSurface3dBtn.config(state='normal')
+            if self.numericalData:
+                self.compareBtn.config(state='normal')
+                self.animateBtn.config(state='normal')
+
+            self.logMessage("Model loaded successfully.")
+
+        except ImportError:
+            self.logMessage("Error: Could not import ResidualBlock. The model may be from an older version.")
+            messagebox.showerror("Error", "Could not import ResidualBlock. The model may be from an older version.")
+        except Exception as e:
+            self.logMessage(f"Error loading model: {e}")
+            messagebox.showerror("Error", f"Failed to load model file: {e}")
+
+    def saveModel(self):
+        """Save the current PINN model to a file."""
+        if not self.pinnModel:
+            messagebox.showwarning("Warning", "No active model to save.")
+            return
+
+        filename = filedialog.asksaveasfilename(
+            title="Save Model As...",
+            defaultextension=".pt",
+            filetypes=[("PyTorch Models", "*.pt"), ("All files", "*.*" )])
+
+        if not filename:
+            return
+
+        try:
+            self.logMessage(f"Saving model to {filename}...")
+            # We need to create an args dict to save with the model
+            from delta_pinn_3d import ResidualBlock # Import for isinstance check
+            argsToSave = {
+                'hidden_size': self.pinnModel.hidden_layers[0].in_features if not self.pinnModel.use_fourier else self.pinnModel.fourier_embed.embed_dim,
+                'num_layers': len([l for l in self.pinnModel.hidden_layers if isinstance(l, (torch.nn.Linear, ResidualBlock))]),
+                'use_fourier': self.pinnModel.use_fourier,
+                'fourier_scale': self.pinnModel.fourier_embed.B.std().item() if self.pinnModel.use_fourier else 1.0,
+                'use_residual': self.pinnModel.use_residual,
+                'alpha': self.alpha
+            }
+            torch.save({
+                'model_state_dict': self.pinnModel.state_dict(),
+                'history': None,  # No training history for demo models
+                'args': argsToSave,
+                'domain_name': self.domain.name,
+                'heat_sources': self.heatSources
+            }, filename)
+            self.logMessage("Model saved successfully.")
+        except Exception as e:
+            self.logMessage(f"Error saving model: {e}")
+            messagebox.showerror("Error", f"Failed to save model: {e}")
+
+    def generateAllVisualizations(self):
+        """Generate and save a standard set of visualization files, then open them."""
+        if not self.pinnModel:
+            messagebox.showwarning("Warning", "A trained or loaded PINN model is required.")
+            return
+
+        self.logMessage("Generating all standard visualizations... This may take a moment.")
+        
+        htmlFilesToOpen = []
+        try:
+            domainName = self.getSanitizedDomainName()
+
+            # --- Static Plots ---
+            self.viz.plotHeatSources(self.heatSources, self.domain, save_name=f"sources_{domainName}")
+            pinnSolution = predictSolution3d(self.pinnModel, self.domain, self.tCurrent, nx=48, ny=48, nz=48, device='cpu')
+            self.viz.plotMatplotlibSlices(pinnSolution, title=f"PINN Solution - {domainName}", save_name=f"pinn_slices_{domainName}")
+
+            # --- Interactive HTML Plots ---
+            self.logMessage("Generating volumetric plot...")
+            _, volPath = self.viz.plotVolumetricRendering(self.pinnModel, self.domain, tMax=self.tMax, saveName=f"volumetric_{domainName}")
+            if volPath: htmlFilesToOpen.append(volPath)
+
+            self.logMessage("Generating surface plot...")
+            _, surfPath = self.viz.plotSurfaceHeatmap(self.pinnModel, self.domain, tMax=self.tMax, saveName=f"surface_{domainName}")
+            if surfPath: htmlFilesToOpen.append(surfPath)
+            
+            self.logMessage("Generating isosurface plot...")
+            _, isoPath = self.viz.plot3dIsosurfaces(pinnSolution, title=f"PINN Solution - {domainName}", save_name=f"pinn_iso_{domainName}")
+            if isoPath: htmlFilesToOpen.append(isoPath)
+
+            self.logMessage(f"All visualizations saved to ./demo_output/")
+            messagebox.showinfo("Success", "All visualizations generated. Opening interactive plots in browser...")
+
+        except Exception as e:
+            self.logMessage(f"Error generating visualizations: {e}")
+            messagebox.showerror("Error", f"An error occurred: {e}")
+            return
+
+        # Open the generated HTML files
+        import webbrowser
+        import os
+        for path in htmlFilesToOpen:
+            if path:
+                webbrowser.open(f"file://{os.path.abspath(path)}")
     
-    def update_gui(self):
+    def updateGui(self):
         """Periodic GUI update from background tasks"""
         try:
             while True:
-                result = self.result_queue.get_nowait()
+                result = self.resultQueue.get_nowait()
                 
                 if result['type'] == 'training_complete':
-                    self.pinn_model = result['model']
-                    self.train_btn.config(state='normal', text='Train PINN')
-                    self.is_training = False
-                    self.log_message("PINN training completed successfully!")
-                    if self.numerical_data:
-                        self.compare_btn.config(state='normal')
-                        self.animate_btn.config(state='normal')
-                    self.show_3d_btn.config(state='normal')
-                    self.show_surface_3d_btn.config(state='normal')
+                    self.pinnModel = result['model']
+                    self.trainBtn.config(state='normal', text='Train PINN')
+                    self.trainFullBtn.config(state='normal', text='Train PINN (Full Quality)')
+                    self.isTraining = False
+                    self.logMessage(f"PINN training ({result['quality']}) completed successfully!")
+                    
+                    # Enable buttons that require a model
+                    self.saveBtn.config(state='normal')
+                    self.genVizBtn.config(state='normal')
+                    self.show3dBtn.config(state='normal')
+                    self.showSurface3dBtn.config(state='normal')
+
+                    if self.numericalData:
+                        self.compareBtn.config(state='normal')
+                        self.animateBtn.config(state='normal')
                 
                 elif result['type'] == 'training_error':
-                    self.train_btn.config(state='normal', text='Train PINN')
-                    self.is_training = False
-                    self.log_message(f"PINN training failed: {result['message']}")
+                    self.trainBtn.config(state='normal', text='Train PINN')
+                    self.trainFullBtn.config(state='normal', text='Train PINN (Full Quality)')
+                    self.isTraining = False
+                    self.logMessage(f"PINN training failed: {result['message']}")
                 
                 elif result['type'] == 'numerical_complete':
-                    self.numerical_data = result['solution']
-                    self.solve_btn.config(state='normal', text='Solve Numerical')
-                    self.log_message("Numerical solution completed successfully!")
-                    if self.pinn_model:
-                        self.compare_btn.config(state='normal')
-                        self.show_3d_btn.config(state='normal')
-                        self.show_surface_3d_btn.config(state='normal')
-                    self.animate_btn.config(state='normal')
+                    self.numericalData = result['solution']
+                    self.solveBtn.config(state='normal', text='Solve Numerical')
+                    self.logMessage("Numerical solution completed successfully!")
+                    if self.pinnModel:
+                        self.compareBtn.config(state='normal')
+                        self.show3dBtn.config(state='normal')
+                        self.showSurface3dBtn.config(state='normal')
+                    self.animateBtn.config(state='normal')
                 
                 elif result['type'] == 'numerical_error':
-                    self.solve_btn.config(state='normal', text='Solve Numerical')
-                    self.log_message(f"Numerical solution failed: {result['message']}")
+                    self.solveBtn.config(state='normal', text='Solve Numerical')
+                    self.logMessage(f"Numerical solution failed: {result['message']}")
                 
+                elif result['type'] == 'domain_change':
+                    self.domainType = result['domain_type']
+                    self.domain = DomainFactory.createDomain(self.domainType)
+                    self.domainVar.set(self.domainType)
+                    self.logMessage(f"Changed domain to: {self.domainType}")
+                    
+                    # Clear solutions
+                    self.pinnModel = None
+                    self.numericalData = None
+                    self.compareBtn.config(state='disabled')
+                    self.animateBtn.config(state='disabled')
+                    
+                    self.updateVisualization()
+
                 elif result['type'] == 'error':
-                    self.log_message(f"Background task error: {result['message']}")
+                    self.logMessage(f"Background task error: {result['message']}")
                     
         except queue.Empty:
             pass
         
         # Schedule next update
-        self.root.after(100, self.update_gui)
+        self.root.after(100, self.updateGui)
     
-    def log_message(self, message):
+    def logMessage(self, message):
         """Add message to status log"""
         timestamp = time.strftime("%H:%M:%S")
-        formatted_message = f"[{timestamp}] {message}\n"
+        formattedMessage = f"[{timestamp}] {message}\n"
         
-        self.status_text.insert(tk.END, formatted_message)
-        self.status_text.see(tk.END)
+        self.statusText.insert(tk.END, formattedMessage)
+        self.statusText.see(tk.END)
+        self.root.update_idletasks()
+
+    def updateProgress(self, epoch, totalEpochs, loss):
+        """Update progress bar and log"""
+        if totalEpochs > 0:
+            progress = int((epoch / totalEpochs) * 100)
+            self.progressBar['value'] = progress
+            if epoch % 100 == 0: # Log every 100 epochs
+                self.logMessage(f"Training epoch {epoch}/{totalEpochs}, Loss: {loss:.4e}")
         self.root.update_idletasks()
     
     def run(self):
@@ -1006,24 +1296,24 @@ def main():
     os.makedirs('./demo_output', exist_ok=True)
     
     # Check dependencies
-    missing_deps = []
+    missingDeps = []
     try:
         import torch
     except ImportError:
-        missing_deps.append('torch')
+        missingDeps.append('torch')
     
     try:
         import matplotlib
     except ImportError:
-        missing_deps.append('matplotlib')
+        missingDeps.append('matplotlib')
     
     try:
         import scipy
     except ImportError:
-        missing_deps.append('scipy')
+        missingDeps.append('scipy')
     
-    if missing_deps:
-        print(f"Missing dependencies: {', '.join(missing_deps)}")
+    if missingDeps:
+        print(f"Missing dependencies: {', '.join(missingDeps)}")
         print("Please install with: pip install torch matplotlib scipy")
         return
     

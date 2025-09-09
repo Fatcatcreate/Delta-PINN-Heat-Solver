@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from abc import ABC, abstractmethod
 from typing import Tuple, Optional, Dict, Any
+from scipy.interpolate import interpn
 
 class Domain3D(ABC):
     """Abstract base class for 3D domains"""
@@ -22,28 +23,28 @@ class Domain3D(ABC):
     
     @abstractmethod
     def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
-        """Return ((x_min, x_max), (y_min, y_max), (z_min, z_max))"""
+        """Return ((xMin, xMax), (yMin, yMax), (zMin, zMax))"""
         pass
     
-    def is_inside(self, x: np.ndarray, y: np.ndarray, z: np.ndarray, tol: float = 1e-6) -> np.ndarray:
+    def isInside(self, x: np.ndarray, y: np.ndarray, z: np.ndarray, tol: float = 1e-6) -> np.ndarray:
         """Check if points are inside domain"""
         return self.sdf(x, y, z) <= tol
     
-    def is_boundary(self, x: np.ndarray, y: np.ndarray, z: np.ndarray, tol: float = 1e-3) -> np.ndarray:
+    def isBoundary(self, x: np.ndarray, y: np.ndarray, z: np.ndarray, tol: float = 1e-3) -> np.ndarray:
         """Check if points are on boundary"""
-        sdf_vals = self.sdf(x, y, z)
-        return np.abs(sdf_vals) <= tol
+        sdfVals = self.sdf(x, y, z)
+        return np.abs(sdfVals) <= tol
     
-    def generate_grid(self, nx: int, ny: int, nz: int) -> Dict[str, np.ndarray]:
+    def generateGrid(self, nX: int, nY: int, nZ: int) -> Dict[str, np.ndarray]:
         """Generate uniform grid with domain mask"""
-        (x_min, x_max), (y_min, y_max), (z_min, z_max) = self.bounds()
+        (xMin, xMax), (yMin, yMax), (zMin, zMax) = self.bounds()
         
-        x = np.linspace(x_min, x_max, nx)
-        y = np.linspace(y_min, y_max, ny)
-        z = np.linspace(z_min, z_max, nz)
+        x = np.linspace(xMin, xMax, nX)
+        y = np.linspace(yMin, yMax, nY)
+        z = np.linspace(zMin, zMax, nZ)
         
         X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
-        mask = self.is_inside(X, Y, Z)
+        mask = self.isInside(X, Y, Z)
         
         return {
             'x': x, 'y': y, 'z': z,
@@ -65,14 +66,14 @@ class UnitCube(Domain3D):
         dz = np.maximum(0 - z, z - 1)
         
         # Outside distance
-        outside_dist = np.sqrt(np.maximum(dx, 0)**2 + np.maximum(dy, 0)**2 + np.maximum(dz, 0)**2)
+        outsideDist = np.sqrt(np.maximum(dx, 0)**2 + np.maximum(dy, 0)**2 + np.maximum(dz, 0)**2)
         
         # Inside distance (negative)
-        inside_dist = np.maximum(np.maximum(dx, dy), dz)
+        insideDist = np.maximum(np.maximum(dx, dy), dz)
         
         return np.where(
             (x >= 0) & (x <= 1) & (y >= 0) & (y <= 1) & (z >= 0) & (z <= 1),
-            inside_dist, outside_dist
+            insideDist, outsideDist
         )
     
     def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
@@ -111,32 +112,32 @@ class LShapedPrism(Domain3D):
         # L-shape is union of two rectangles in xy-plane, extruded in z
         
         # Rectangle 1: [0, 1] x [0, thickness] x [0, 1]
-        rect1_x = np.maximum(0 - x, x - 1)
-        rect1_y = np.maximum(0 - y, y - self.thickness)
-        rect1_z = np.maximum(0 - z, z - 1)
+        rect1X = np.maximum(0 - x, x - 1)
+        rect1Y = np.maximum(0 - y, y - self.thickness)
+        rect1Z = np.maximum(0 - z, z - 1)
         
         # Rectangle 2: [0, thickness] x [0, 1] x [0, 1]  
-        rect2_x = np.maximum(0 - x, x - self.thickness)
-        rect2_y = np.maximum(0 - y, y - 1)
-        rect2_z = np.maximum(0 - z, z - 1)
+        rect2X = np.maximum(0 - x, x - self.thickness)
+        rect2Y = np.maximum(0 - y, y - 1)
+        rect2Z = np.maximum(0 - z, z - 1)
         
         # SDF for each rectangle
-        sdf1 = self._box_sdf(rect1_x, rect1_y, rect1_z)
-        sdf2 = self._box_sdf(rect2_x, rect2_y, rect2_z)
+        sdf1 = self.boxSdf(rect1X, rect1Y, rect1Z)
+        sdf2 = self.boxSdf(rect2X, rect2Y, rect2Z)
         
         # Union (minimum distance)
         return np.minimum(sdf1, sdf2)
     
-    def _box_sdf(self, dx: np.ndarray, dy: np.ndarray, dz: np.ndarray) -> np.ndarray:
+    def boxSdf(self, dx: np.ndarray, dy: np.ndarray, dz: np.ndarray) -> np.ndarray:
         """SDF for box given edge distances"""
-        outside_dist = np.sqrt(
+        outsideDist = np.sqrt(
             np.maximum(dx, 0)**2 + np.maximum(dy, 0)**2 + np.maximum(dz, 0)**2
         )
-        inside_dist = np.maximum(np.maximum(dx, dy), dz)
+        insideDist = np.maximum(np.maximum(dx, dy), dz)
         
         return np.where(
             (dx <= 0) & (dy <= 0) & (dz <= 0),
-            inside_dist, outside_dist
+            insideDist, outsideDist
         )
     
     def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
@@ -163,10 +164,10 @@ class TorusSection(Domain3D):
         return np.sqrt(q**2 + pz**2) - self.r
     
     def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
-        total_radius = self.R + self.r + 0.1
+        totalRadius = self.R + self.r + 0.1
         return (
-            (self.center[0] - total_radius, self.center[0] + total_radius),
-            (self.center[1] - total_radius, self.center[1] + total_radius), 
+            (self.center[0] - totalRadius, self.center[0] + totalRadius),
+            (self.center[1] - totalRadius, self.center[1] + totalRadius), 
             (self.center[2] - self.r - 0.1, self.center[2] + self.r + 0.1)
         )
 
@@ -175,17 +176,17 @@ class CylinderWithHoles(Domain3D):
     
     def __init__(self, radius: float = 0.4, height: float = 0.8,
                  center: Tuple[float, float, float] = (0.5, 0.5, 0.5),
-                 hole_positions: Optional[list] = None, hole_radius: float = 0.1):
+                 holePositions: Optional[list] = None, holeRadius: float = 0.1):
         super().__init__("CylinderWithHoles")
         self.radius = radius
         self.height = height
         self.center = np.array(center)
-        self.hole_radius = hole_radius
+        self.holeRadius = holeRadius
         
-        if hole_positions is None:
-            self.hole_positions = [(0.3, 0.5), (0.7, 0.5)]  # (x, y) positions
+        if holePositions is None:
+            self.holePositions = [(0.3, 0.5), (0.7, 0.5)]  # (x, y) positions
         else:
-            self.hole_positions = hole_positions
+            self.holePositions = holePositions
     
     def sdf(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
         # Translate to center
@@ -194,22 +195,22 @@ class CylinderWithHoles(Domain3D):
         pz = z - self.center[2]
         
         # Main cylinder SDF
-        radial_dist = np.sqrt(px**2 + py**2) - self.radius
-        height_dist = np.abs(pz) - self.height/2
+        radialDist = np.sqrt(px**2 + py**2) - self.radius
+        heightDist = np.abs(pz) - self.height/2
         
         # Cylinder SDF (union of radial and height constraints)
-        cylinder_sdf = np.maximum(radial_dist, height_dist)
+        cylinderSdf = np.maximum(radialDist, heightDist)
         
         # Subtract holes
-        for hole_x, hole_y in self.hole_positions:
-            hole_px = x - hole_x
-            hole_py = y - hole_y
-            hole_dist = np.sqrt(hole_px**2 + hole_py**2) - self.hole_radius
+        for holeX, holeY in self.holePositions:
+            holePx = x - holeX
+            holePy = y - holeY
+            holeDist = np.sqrt(holePx**2 + holePy**2) - self.holeRadius
             
             # Subtract hole (max with negative hole distance)
-            cylinder_sdf = np.maximum(cylinder_sdf, -hole_dist)
+            cylinderSdf = np.maximum(cylinderSdf, -holeDist)
         
-        return cylinder_sdf
+        return cylinderSdf
     
     def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
         margin = 0.1
@@ -219,6 +220,33 @@ class CylinderWithHoles(Domain3D):
             (self.center[2] - self.height/2 - margin, self.center[2] + self.height/2 + margin)
         )
 
+class VoxelDomain(Domain3D):
+    """Domain defined by a voxelized signed distance function from a .npy file."""
+
+    def __init__(self, npy_path: str, name: str = "VoxelDomain"):
+        super().__init__(name)
+        data = np.load(npy_path, allow_pickle=True).item()
+        self.sdf_data = data["sdf"]
+        self._bounds = data["bounds"]
+        self.pitch = data["pitch"]
+        
+        # Create grid coordinates for interpolation
+        self.x_coords = np.arange(self._bounds[0, 0], self._bounds[1, 0] + self.pitch, self.pitch)
+        self.y_coords = np.arange(self._bounds[0, 1], self._bounds[1, 1] + self.pitch, self.pitch)
+        self.z_coords = np.arange(self._bounds[0, 2], self._bounds[1, 2] + self.pitch, self.pitch)
+
+    def sdf(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
+        """Interpolate the SDF value from the voxel grid."""
+        points = np.stack([x, y, z], axis=-1)
+        
+        # Interpolate
+        return interpn((self.x_coords, self.y_coords, self.z_coords), self.sdf_data, points, method='linear', bounds_error=False, fill_value=np.max(self.sdf_data))
+
+    def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
+        return ((self._bounds[0, 0], self._bounds[1, 0]),
+                (self._bounds[0, 1], self._bounds[1, 1]),
+                (self._bounds[0, 2], self._bounds[1, 2]))
+
 class DomainFactory:
     """Factory for creating domain instances"""
     
@@ -227,85 +255,92 @@ class DomainFactory:
         'sphere': Sphere, 
         'lshape': LShapedPrism,
         'torus': TorusSection,
-        'cylinder_holes': CylinderWithHoles
+        'cylinder_holes': CylinderWithHoles,
+        'voxel': VoxelDomain
     }
     
     @classmethod
-    def create_domain(cls, domain_type: str, **kwargs) -> Domain3D:
+    def createDomain(cls, domainType: str, **kwargs) -> Domain3D:
         """Create domain instance by type"""
-        if domain_type not in cls.AVAILABLE_DOMAINS:
-            raise ValueError(f"Unknown domain type: {domain_type}")
+        if domainType.endswith('.npy'):
+            return VoxelDomain(domainType, name=domainType)
+        if domainType not in cls.AVAILABLE_DOMAINS:
+            # try to load as a npy file
+            try:
+                return VoxelDomain(domainType, name=domainType)
+            except Exception:
+                raise ValueError(f"Unknown domain type: {domainType}")
         
-        domain_class = cls.AVAILABLE_DOMAINS[domain_type]
-        return domain_class(**kwargs)
+        domainClass = cls.AVAILABLE_DOMAINS[domainType]
+        return domainClass(**kwargs)
     
     @classmethod
-    def list_domains(cls) -> list:
+    def listDomains(cls) -> list:
         """List available domain types"""
         return list(cls.AVAILABLE_DOMAINS.keys())
 
-def generate_interior_points(domain: Domain3D, n_points: int, 
+def generateInteriorPoints(domain: Domain3D, nPoints: int, 
                            device: str = 'cpu') -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Generate random points inside domain for PDE collocation"""
-    (x_min, x_max), (y_min, y_max), (z_min, z_max) = domain.bounds()
+    (xMin, xMax), (yMin, yMax), (zMin, zMax) = domain.bounds()
     
     # Generate more points than needed, then filter
-    n_gen = min(n_points * 5, 100000)  # Avoid memory issues
+    nGen = min(nPoints * 5, 100000)  # Avoid memory issues
     
-    x_rand = np.random.uniform(x_min, x_max, n_gen)
-    y_rand = np.random.uniform(y_min, y_max, n_gen)
-    z_rand = np.random.uniform(z_min, z_max, n_gen)
+    xRand = np.random.uniform(xMin, xMax, nGen)
+    yRand = np.random.uniform(yMin, yMax, nGen)
+    zRand = np.random.uniform(zMin, zMax, nGen)
     
     # Filter points inside domain
-    inside_mask = domain.is_inside(x_rand, y_rand, z_rand)
+    insideMask = domain.isInside(xRand, yRand, zRand)
     
-    x_inside = x_rand[inside_mask]
-    y_inside = y_rand[inside_mask]
-    z_inside = z_rand[inside_mask]
+    xInside = xRand[insideMask]
+    yInside = yRand[insideMask]
+    zInside = zRand[insideMask]
     
-    # Take first n_points (or all if less than requested)
-    n_actual = min(len(x_inside), n_points)
+    # Take first nPoints (or all if less than requested)
+    nActual = min(len(xInside), nPoints)
     
-    if n_actual < n_points:
-        print(f"Warning: Only generated {n_actual}/{n_points} interior points")
+    if nActual < nPoints:
+        print(f"Warning: Only generated {nActual}/{nPoints} interior points")
     
-    x_points = torch.tensor(x_inside[:n_actual], dtype=torch.float32, device=device, requires_grad=True)
-    y_points = torch.tensor(y_inside[:n_actual], dtype=torch.float32, device=device, requires_grad=True)
-    z_points = torch.tensor(z_inside[:n_actual], dtype=torch.float32, device=device, requires_grad=True)
+    xPoints = torch.tensor(xInside[:nActual], dtype=torch.float32, device=device, requires_grad=True)
+    yPoints = torch.tensor(yInside[:nActual], dtype=torch.float32, device=device, requires_grad=True)
+    zPoints = torch.tensor(zInside[:nActual], dtype=torch.float32, device=device, requires_grad=True)
     
-    return x_points.unsqueeze(1), y_points.unsqueeze(1), z_points.unsqueeze(1)
+    return xPoints.unsqueeze(1), yPoints.unsqueeze(1), zPoints.unsqueeze(1)
 
-def generate_boundary_points(domain: Domain3D, n_points: int,
+def generateBoundaryPoints(domain: Domain3D, nPoints: int,
                            device: str = 'cpu') -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Generate points on domain boundary"""
-    (x_min, x_max), (y_min, y_max), (z_min, z_max) = domain.bounds()
+    (xMin, xMax), (yMin, yMax), (zMin, zMax) = domain.bounds()
     
     # Generate many candidates
-    n_gen = min(n_points * 10, 200000)
+    nGen = min(nPoints * 10, 200000)
     
-    x_rand = np.random.uniform(x_min, x_max, n_gen)
-    y_rand = np.random.uniform(y_min, y_max, n_gen)
-    z_rand = np.random.uniform(z_min, z_max, n_gen)
+    xRand = np.random.uniform(xMin, xMax, nGen)
+    yRand = np.random.uniform(yMin, yMax, nGen)
+    zRand = np.random.uniform(zMin, zMax, nGen)
     
     # Filter boundary points
-    boundary_mask = domain.is_boundary(x_rand, y_rand, z_rand, tol=1e-3)
+    boundaryMask = domain.isBoundary(xRand, yRand, zRand, tol=1e-3)
     
-    x_boundary = x_rand[boundary_mask]
-    y_boundary = y_rand[boundary_mask]
-    z_boundary = z_rand[boundary_mask]
+    xBoundary = xRand[boundaryMask]
+    yBoundary = yRand[boundaryMask]
+    zBoundary = zRand[boundaryMask]
     
-    n_actual = min(len(x_boundary), n_points)
+    nActual = min(len(xBoundary), nPoints)
     
-    if n_actual < n_points:
-        print(f"Warning: Only generated {n_actual}/{n_points} boundary points")
+    if nActual < nPoints:
+        print(f"Warning: Only generated {nActual}/{nPoints} boundary points")
     
-    x_points = torch.tensor(x_boundary[:n_actual], dtype=torch.float32, device=device, requires_grad=True)
-    y_points = torch.tensor(y_boundary[:n_actual], dtype=torch.float32, device=device, requires_grad=True)
-    z_points = torch.tensor(z_boundary[:n_actual], dtype=torch.float32, device=device, requires_grad=True)
+    xPoints = torch.tensor(xBoundary[:nActual], dtype=torch.float32, device=device, requires_grad=True)
+    yPoints = torch.tensor(yBoundary[:nActual], dtype=torch.float32, device=device, requires_grad=True)
+    zPoints = torch.tensor(zBoundary[:nActual], dtype=torch.float32, device=device, requires_grad=True)
     
-    return x_points.unsqueeze(1), y_points.unsqueeze(1), z_points.unsqueeze(1)
+    return xPoints.unsqueeze(1), yPoints.unsqueeze(1), zPoints.unsqueeze(1)
 
-def test_domains():
+def testDomains():
     """Test domain implementations"""
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
@@ -323,17 +358,17 @@ def test_domains():
         ax = fig.add_subplot(1, 4, i+1, projection='3d')
         
         # Generate test grid  
-        grid = domain.generate_grid(32, 32, 32)
+        grid = domain.generateGrid(32, 32, 32)
         X, Y, Z, mask = grid['X'], grid['Y'], grid['Z'], grid['mask']
         
         # Plot interior points
-        interior_idx = np.where(mask)
-        if len(interior_idx[0]) > 0:
-            sample_idx = np.random.choice(len(interior_idx[0]), 
-                                        min(1000, len(interior_idx[0])), replace=False)
-            ax.scatter(X[interior_idx][sample_idx], 
-                      Y[interior_idx][sample_idx],
-                      Z[interior_idx][sample_idx], 
+        interiorIdx = np.where(mask)
+        if len(interiorIdx[0]) > 0:
+            sampleIdx = np.random.choice(len(interiorIdx[0]), 
+                                        min(1000, len(interiorIdx[0])), replace=False)
+            ax.scatter(X[interiorIdx][sampleIdx], 
+                      Y[interiorIdx][sampleIdx],
+                      Z[interiorIdx][sampleIdx], 
                       s=1, alpha=0.3)
         
         ax.set_title(domain.name)
@@ -343,4 +378,4 @@ def test_domains():
     plt.show()
 
 if __name__ == '__main__':
-    test_domains()
+    testDomains()

@@ -16,6 +16,8 @@ import torch
 from typing import Dict, List, Tuple, Optional, Union
 import warnings
 warnings.filterwarnings('ignore')
+import sys
+from tqdm import tqdm
 
 # Try to import advanced plotting libraries
 try:
@@ -28,7 +30,7 @@ except ImportError:
     print("Plotly not available. Using matplotlib only.")
 
 from domain_shapes import Domain3D, DomainFactory
-from delta_pinn_3d import DeltaPINN3D, load_trained_model, predict_solution_3d
+from delta_pinn_3d import DeltaPINN3D, loadTrainedModel, predictSolution3d
 from numerical_solution import HeatSolver3D
 
 try:
@@ -43,57 +45,57 @@ from scipy.interpolate import griddata, RBFInterpolator
 class HeatVisualization3D:
     """Advanced 3D visualization for heat diffusion"""
     
-    def __init__(self, save_dir: str = './visualizations'):
-        self.save_dir = save_dir
-        os.makedirs(save_dir, exist_ok=True)
+    def __init__(self, saveDir: str = './visualizations'):
+        self.saveDir = saveDir
+        os.makedirs(saveDir, exist_ok=True)
         
         # Custom colormap for heat visualization
-        self.heat_cmap = LinearSegmentedColormap.from_list(
+        self.heatCmap = LinearSegmentedColormap.from_list(
             'heat_custom',
             ['#000080', '#0000FF', '#00FFFF', '#FFFF00', '#FF8000', '#FF0000', '#800000'],
             N=256
         )
         
         # Error colormap
-        self.error_cmap = LinearSegmentedColormap.from_list(
+        self.errorCmap = LinearSegmentedColormap.from_list(
             'error_custom',
             ['#000040', '#0000FF', '#FFFFFF', '#FF0000', '#400000'],
             N=256
         )
     
-    def plot_3d_isosurfaces(self, solution_data: Dict, time_idx: int = -1,
-                           iso_values: Optional[List[float]] = None,
-                           title: str = "3D Heat Isosurfaces", save_name: str = "isosurfaces"):
+    def plot3dIsosurfaces(self, solutionData: Dict, timeIdx: int = -1,
+                           isoValues: Optional[List[float]] = None,
+                           title: str = "3D Heat Isosurfaces", saveName: str = "isosurfaces"):
         """Plot 3D isosurfaces of temperature field"""
         
         if not PLOTLY_AVAILABLE:
             print("Plotly not available. Using matplotlib slice visualization instead.")
-            return self._plot_matplotlib_slices(solution_data, time_idx, title, save_name)
+            return self.plotMatplotlibSlices(solutionData, timeIdx, title, saveName)
         
         # Extract data
-        X = solution_data.get('X')
-        Y = solution_data.get('Y') 
-        Z = solution_data.get('Z')
-        u = solution_data['u'] if 'u' in solution_data else solution_data['solutions'][time_idx]
+        X = solutionData.get('X')
+        Y = solutionData.get('Y') 
+        Z = solutionData.get('Z')
+        u = solutionData['u'] if 'u' in solutionData else solutionData['solutions'][timeIdx]
         
         # If u is 1D (from numerical solver), convert to grid
         if len(u.shape) == 1:
-            solver_data = solution_data
-            u_grid = np.full(X.shape, np.nan)
-            u_grid[solver_data['interior_indices']] = u
-            u = u_grid
+            solverData = solutionData
+            uGrid = np.full(X.shape, np.nan)
+            uGrid[solverData['interior_indices']] = u
+            u = uGrid
         
         # Default isovalues
-        if iso_values is None:
-            u_clean = u[~np.isnan(u)]
-            print(f"Number of non-NaN points: {len(u_clean)}")
-            if len(u_clean) > 0:
-                u_max = np.max(u_clean)
-                print(f"Max solution value for iso-surface: {u_max}")
-                iso_values = [0.1 * u_max, 0.3 * u_max, 0.5 * u_max, 0.7 * u_max]
-                print(f"Iso-values: {iso_values}")
+        if isoValues is None:
+            uClean = u[~np.isnan(u)]
+            print(f"Number of non-NaN points: {len(uClean)}")
+            if len(uClean) > 0:
+                uMax = np.max(uClean)
+                print(f"Max solution value for iso-surface: {uMax}")
+                isoValues = [0.1 * uMax, 0.3 * uMax, 0.5 * uMax, 0.7 * uMax]
+                print(f"Iso-values: {isoValues}")
             else:
-                iso_values = [0.1, 0.3, 0.5, 0.7]
+                isoValues = [0.1, 0.3, 0.5, 0.7]
         
         # Create plotly figure
         fig = go.Figure()
@@ -101,7 +103,7 @@ class HeatVisualization3D:
         # Add isosurfaces
         colors = ['blue', 'green', 'yellow', 'red', 'purple']
         
-        plotly_colorscale = [
+        plotlyColorscale = [
             [0.0, '#000080'], [1/6, '#0000FF'], [2/6, '#00FFFF'],
             [3/6, '#FFFF00'], [4/6, '#FF8000'], [5/6, '#FF0000'], [1.0, '#800000']
         ]
@@ -113,20 +115,20 @@ class HeatVisualization3D:
         print(f"Number of NaNs in u: {np.isnan(u).sum()}")
         print(f"Number of non-NaNs in u: {np.count_nonzero(~np.isnan(u))}")
 
-        for i, iso_val in enumerate(iso_values):
-            if iso_val <= np.nanmax(u):
+        for i, isoVal in enumerate(isoValues):
+            if isoVal <= np.nanmax(u):
                 fig.add_trace(go.Isosurface(
                     x=X.flatten(),
                     y=Y.flatten(),
                     z=Z.flatten(),
                     value=u.flatten(),
-                    isomin=iso_val,
-                    isomax=iso_val + 1e-9,
+                    isomin=isoVal,
+                    isomax=isoVal + 1e-9,
                     surface_count=1,
-                    colorscale=plotly_colorscale,
+                    colorscale=plotlyColorscale,
                     showscale=False,
                     opacity=0.7,
-                    name=f'T = {iso_val:.3f}'
+                    name=f'T = {isoVal:.3f}'
                 ))
         
         # Layout
@@ -143,27 +145,27 @@ class HeatVisualization3D:
         )
         
         # Save
-        output_path = os.path.join(self.save_dir, f"{save_name}.html")
-        plotly_plot(fig, filename=output_path, auto_open=False)
-        print(f"3D isosurfaces saved to {output_path}")
+        outputPath = os.path.join(self.saveDir, f"{saveName}.html")
+        plotly_plot(fig, filename=outputPath, auto_open=False)
+        print(f"3D isosurfaces saved to {outputPath}")
         
-        return fig
+        return fig, outputPath
     
-    def _plot_matplotlib_slices(self, solution_data: Dict, time_idx: int = -1,
-                               title: str = "Temperature Slices", save_name: str = "slices"):
+    def plotMatplotlibSlices(self, solutionData: Dict, timeIdx: int = -1,
+                               title: str = "Temperature Slices", saveName: str = "slices"):
         """Fallback matplotlib visualization with 2D slices"""
         
         # Extract data
-        X = solution_data.get('X')
-        Y = solution_data.get('Y')
-        Z = solution_data.get('Z') 
-        u = solution_data['u'] if 'u' in solution_data else solution_data['solutions'][time_idx]
+        X = solutionData.get('X')
+        Y = solutionData.get('Y')
+        Z = solutionData.get('Z') 
+        u = solutionData['u'] if 'u' in solutionData else solutionData['solutions'][timeIdx]
         
         # If u is 1D, convert to grid
         if len(u.shape) == 1:
-            u_grid = np.full(X.shape, np.nan)
-            u_grid[solution_data['interior_indices']] = u
-            u = u_grid
+            uGrid = np.full(X.shape, np.nan)
+            uGrid[solutionData['interior_indices']] = u
+            u = uGrid
         
         # Create figure with subplots
         fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -171,28 +173,28 @@ class HeatVisualization3D:
         
         # Middle slice indices
         nx, ny, nz = u.shape
-        mid_x, mid_y, mid_z = nx//2, ny//2, nz//2
+        midX, midY, midZ = nx//2, ny//2, nz//2
         
         # XY slice (middle Z)
-        im1 = axes[0,0].contourf(X[mid_z], Y[mid_z], u[mid_z], 
-                                levels=20, cmap=self.heat_cmap)
-        axes[0,0].set_title(f'XY Slice (Z = {Z[mid_z,0,mid_z]:.2f})')
+        im1 = axes[0,0].contourf(X[midZ], Y[midZ], u[midZ], 
+                                levels=20, cmap=self.heatCmap)
+        axes[0,0].set_title(f'XY Slice (Z = {Z[midZ,0,midZ]:.2f})')
         axes[0,0].set_xlabel('X')
         axes[0,0].set_ylabel('Y')
         plt.colorbar(im1, ax=axes[0,0])
         
         # XZ slice (middle Y) 
-        im2 = axes[0,1].contourf(X[:,mid_y,:], Z[:,mid_y,:], u[:,mid_y,:],
-                                levels=20, cmap=self.heat_cmap)
-        axes[0,1].set_title(f'XZ Slice (Y = {Y[0,mid_y,0]:.2f})')
+        im2 = axes[0,1].contourf(X[:,midY,:], Z[:,midY,:], u[:,midY,:],
+                                levels=20, cmap=self.heatCmap)
+        axes[0,1].set_title(f'XZ Slice (Y = {Y[0,midY,0]:.2f})')
         axes[0,1].set_xlabel('X')
         axes[0,1].set_ylabel('Z')
         plt.colorbar(im2, ax=axes[0,1])
         
         # YZ slice (middle X)
-        im3 = axes[1,0].contourf(Y[mid_x], Z[mid_x], u[mid_x],
-                                levels=20, cmap=self.heat_cmap)
-        axes[1,0].set_title(f'YZ Slice (X = {X[mid_x,0,0]:.2f})')
+        im3 = axes[1,0].contourf(Y[midX], Z[midX], u[midX],
+                                levels=20, cmap=self.heatCmap)
+        axes[1,0].set_title(f'YZ Slice (X = {X[midX,0,0]:.2f})')
         axes[1,0].set_xlabel('Y')
         axes[1,0].set_ylabel('Z')
         plt.colorbar(im3, ax=axes[1,0])
@@ -202,13 +204,13 @@ class HeatVisualization3D:
         
         # Show points above threshold
         threshold = 0.3 * np.nanmax(u)
-        high_temp_mask = (u > threshold) & (~np.isnan(u))
+        highTempMask = (u > threshold) & (~np.isnan(u))
         
-        if np.any(high_temp_mask):
-            xx, yy, zz = np.where(high_temp_mask)
-            temps = u[high_temp_mask]
+        if np.any(highTempMask):
+            xx, yy, zz = np.where(highTempMask)
+            temps = u[highTempMask]
             scatter = ax3d.scatter(X[xx, yy, zz], Y[xx, yy, zz], Z[xx, yy, zz],
-                                 c=temps, cmap=self.heat_cmap, s=20, alpha=0.6)
+                                 c=temps, cmap=self.heatCmap, s=20, alpha=0.6)
             plt.colorbar(scatter, ax=ax3d, shrink=0.8)
         
         ax3d.set_title('High Temperature Regions')
@@ -219,66 +221,93 @@ class HeatVisualization3D:
         plt.tight_layout()
         
         # Save
-        output_path = os.path.join(self.save_dir, f"{save_name}.png")
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        outputPath = os.path.join(self.saveDir, f"{saveName}.png")
+        plt.savefig(outputPath, dpi=150, bbox_inches='tight')
         plt.show()
-        print(f"Temperature slices saved to {output_path}")
+        print(f"Temperature slices saved to {outputPath}")
         
         return fig
     
-    def plot_volumetric_rendering(self, solution_data: Dict, domain: Domain3D, time_idx: int = -1,
-                                 opacity_scale: float = 0.1,
+    def plotVolumetricRendering(self, model: DeltaPINN3D, domain: Domain3D,
+                                 tMax: float = 1.0, timeSteps: int = 20,
+                                 opacityScale: float = 0.1,
                                  title: str = "Volumetric Temperature",
-                                 save_name: str = "volumetric"):
-        """3D volumetric rendering of temperature field with domain boundary"""
+                                 saveName: str = "volumetric"):
+        """3D volumetric rendering of temperature field with domain boundary and time slider"""
         
         if not PLOTLY_AVAILABLE:
-            print("Plotly not available for volumetric rendering. Using slice view.")
-            return self._plot_matplotlib_slices(solution_data, time_idx, title, save_name)
+            print("Plotly not available for volumetric rendering.")
+            return None, None
+
+        # Create time steps
+        timeValues = np.linspace(0, tMax, timeSteps)
         
-        # Extract solution data
-        X_sol, Y_sol, Z_sol = solution_data.get('X'), solution_data.get('Y'), solution_data.get('Z')
-        u = solution_data['u'] if 'u' in solution_data else solution_data['solutions'][time_idx]
-        
-        if len(u.shape) == 1:
-            u_grid = np.full(X_sol.shape, np.nan)
-            u_grid[solution_data['interior_indices']] = u
-            u = u_grid
-        
-        u_clean = u[~np.isnan(u)]
-        if len(u_clean) == 0:
-            print("No valid temperature data found.")
-            return None
-        
-        min_val = np.nanmin(u)
-        u_no_nan = np.nan_to_num(u, nan=min_val)
+        # Pre-calculate solutions
+        solutions = []
+        for t in timeValues:
+            print(f"Predicting solution for t={t:.4f}")
+            solutionData = predictSolution3d(model, domain, t, nX=48, nY=48, nZ=48, device='cpu')
+            solutions.append(solutionData)
+
+        # Find global min and max temperatures
+        allTemps = np.concatenate([sol['u'].flatten() for sol in solutions])
+        allTemps = allTemps[~np.isnan(allTemps)]
+        cmin = np.percentile(allTemps, 1)
+        cmax = np.percentile(allTemps, 99)
 
         # Create the volumetric heatmap plot
         fig = go.Figure()
 
-        fig.add_trace(go.Volume(
-            x=X_sol.flatten(),
-            y=Y_sol.flatten(),
-            z=Z_sol.flatten(),
-            value=u_no_nan.flatten(),
-            opacity=0.2,
-            surface_count=15,
-            colorscale='Hot',
-            opacityscale=[[0, 0], [0.2, 0.1], [0.5, 0.3], [0.8, 0.7], [1, 1]],
-            name='Heatmap'
-        ))
+        # Add a volume trace for each time step
+        for i, solData in enumerate(solutions):
+            u = solData['u']
+            minVal = np.nanmin(u)
+            uNoNan = np.nan_to_num(u, nan=minVal)
+            
+            fig.add_trace(go.Volume(
+                x=solData['X'].flatten(),
+                y=solData['Y'].flatten(),
+                z=solData['Z'].flatten(),
+                value=uNoNan.flatten(),
+                opacity=0.2,
+                surface_count=15,
+                colorscale='Hot',
+                cmin=cmin,
+                cmax=cmax,
+                opacityscale=[[0, 0], [0.2, 0.1], [0.5, 0.3], [0.8, 0.7], [1, 1]],
+                name=f't = {timeValues[i]:.2f}',
+                visible=(i == 0) # Make only the first trace visible
+            ))
 
+        # Create slider
+        steps = []
+        for i in range(len(solutions)):
+            step = dict(
+                method="update",
+                args=[{"visible": [False] * (len(solutions) + 1)}, # +1 for the isosurface
+                      {"title": f"{title} (t={timeValues[i]:.2f})"}],  # layout attribute
+            )
+            step["args"][0]["visible"][i] = True  # Toggle i'th trace to "visible"
+            steps.append(step)
+
+        sliders = [dict(
+            active=0,
+            currentvalue={"prefix": "Time: "},
+            pad={"t": 50},
+            steps=steps
+        )]
+        
         # Generate domain boundary for visualization
-        grid_data = domain.generate_grid(48, 48, 48)
-        X_dom, Y_dom, Z_dom = grid_data['X'], grid_data['Y'], grid_data['Z']
-        sdf_vals = grid_data['sdf']
+        gridData = domain.generateGrid(48, 48, 48)
+        XDom, YDom, ZDom = gridData['X'], gridData['Y'], gridData['Z']
+        sdfVals = gridData['sdf']
 
         # Add domain boundary as a mesh
         fig.add_trace(go.Isosurface(
-            x=X_dom.flatten(),
-            y=Y_dom.flatten(),
-            z=Z_dom.flatten(),
-            value=sdf_vals.flatten(),
+            x=XDom.flatten(),
+            y=YDom.flatten(),
+            z=ZDom.flatten(),
+            value=sdfVals.flatten(),
             isomin=0,
             isomax=0,
             surface_count=1,
@@ -288,8 +317,12 @@ class HeatVisualization3D:
             name='Domain Boundary'
         ))
         
+        # Make the isosurface visible for all steps
+        for step in steps:
+            step["args"][0]["visible"][-1] = True
+
         fig.update_layout(
-            title=title,
+            title=f"{title} (t={timeValues[0]:.2f})",
             scene=dict(
                 xaxis_title='X',
                 yaxis_title='Y',
@@ -297,34 +330,36 @@ class HeatVisualization3D:
                 aspectmode='cube'
             ),
             width=900,
-            height=700
+            height=700,
+            sliders=sliders
         )
         
         # Save
-        output_path = os.path.join(self.save_dir, f"{save_name}.html")
-        plotly_plot(fig, filename=output_path, auto_open=False)
-        print(f"Volumetric rendering with domain boundary saved to {output_path}")
+        outputPath = os.path.join(self.saveDir, f"{saveName}.html")
+        plotly_plot(fig, filename=outputPath, auto_open=False)
+        print(f"Volumetric rendering with domain boundary saved to {outputPath}")
         
-        return fig
+        return fig, outputPath
 
-    def plot_surface_heatmap(self, solution_data: Dict, domain: Domain3D,
+    def plotSurfaceHeatmap(self, model: DeltaPINN3D, domain: Domain3D,
+                             tMax: float = 1.0, timeSteps: int = 20,
                              title: str = "Surface Temperature Heatmap",
-                             save_name: str = "surface_heatmap",
+                             saveName: str = "surface_heatmap",
                              smoothing: float = 1.0):
-        """Plot temperature heatmap on the 3D domain surface"""
+        """Plot temperature heatmap on the 3D domain surface with a time slider."""
         
         if not PLOTLY_AVAILABLE or not SKIMAGE_AVAILABLE:
             print("Plotly or Scikit-image not available for surface heatmap.")
-            return None
+            return None, None, None, None
 
         # Generate a high-resolution grid for surface extraction
-        grid_data = domain.generate_grid(256, 256, 256)
-        X_dom, Y_dom, Z_dom = grid_data['X'], grid_data['Y'], grid_data['Z']
-        sdf_vals = grid_data['sdf']
+        gridData = domain.generateGrid(256, 256, 256)
+        XDom, YDom, ZDom = gridData['X'], gridData['Y'], gridData['Z']
+        sdfVals = gridData['sdf']
 
         # Use marching cubes to find the surface mesh
         try:
-            verts, faces, _, _ = measure.marching_cubes(sdf_vals, level=0)
+            verts, faces, _, _ = measure.marching_cubes(sdfVals, level=0)
             # Scale vertices to the domain bounds
             bounds = domain.bounds()
             verts[:, 0] = verts[:, 0] * (bounds[0][1] - bounds[0][0]) / (256 - 1) + bounds[0][0]
@@ -332,48 +367,85 @@ class HeatVisualization3D:
             verts[:, 2] = verts[:, 2] * (bounds[2][1] - bounds[2][0]) / (256 - 1) + bounds[2][0]
         except (ValueError, RuntimeError) as e:
             print(f"Marching cubes failed: {e}. Cannot generate surface plot.")
-            return None
+            return None, None, None, None
 
         if len(verts) == 0:
             print("Marching cubes did not find a surface.")
-            return None
+            return None, None, None, None
 
-        # Interpolate the solution onto the surface vertices
-        u_sol = solution_data['u']
-        sol_grid_points = np.array([solution_data['X'].flatten(), solution_data['Y'].flatten(), solution_data['Z'].flatten()]).T
-        sol_values = u_sol.flatten()
+        # Create time steps
+        timeValues = np.linspace(0, tMax, timeSteps)
         
-        # Filter out NaN values from solution for interpolation
-        valid_indices = ~np.isnan(sol_values)
-        if not np.any(valid_indices):
-            print("No valid solution data to interpolate.")
-            return None
-        
-        # Use RBFInterpolator for smooth interpolation
-        rbf_interp = RBFInterpolator(sol_grid_points[valid_indices], sol_values[valid_indices], kernel='thin_plate_spline', epsilon=smoothing)
-        interpolated_temps = rbf_interp(verts)
+        # Pre-calculate solutions and interpolate temperatures
+        interpolatedTempsList = []
+        for t in tqdm(timeValues, desc="Calculating surface plot", file=sys.stdout):
+            solutionData = predictSolution3d(model, domain, t, nX=48, nY=48, nZ=48, device='cpu')
+            
+            uSol = solutionData['u']
+            solGridPoints = np.array([solutionData['X'].flatten(), solutionData['Y'].flatten(), solutionData['Z'].flatten()]).T
+            solValues = uSol.flatten()
+            
+            validIndices = ~np.isnan(solValues)
+            if not np.any(validIndices):
+                print(f"No valid solution data to interpolate for t={t:.4f}")
+                interpolatedTempsList.append(np.zeros(len(verts)))
+                continue
 
-        # Handle vertices where interpolation failed (e.g., outside the convex hull)
-        if np.isnan(interpolated_temps).any():
-            print("Could not interpolate temperatures for all surface vertices. Filling with 0.")
-            interpolated_temps = np.nan_to_num(interpolated_temps, nan=0.0)
+            rbfInterp = RBFInterpolator(solGridPoints[validIndices], solValues[validIndices], kernel='thin_plate_spline', epsilon=smoothing)
+            interpolatedTemps = rbfInterp(verts)
 
-        # Create Plotly Mesh3d plot
-        fig = go.Figure(data=[go.Mesh3d(
-            x=verts[:, 0],
-            y=verts[:, 1],
-            z=verts[:, 2],
-            i=faces[:, 0],
-            j=faces[:, 1],
-            k=faces[:, 2],
-            intensity=interpolated_temps,
-            colorscale='Jet',
-            colorbar_title='Temperature',
-            name='Surface Heatmap'
-        )])
+            if np.isnan(interpolatedTemps).any():
+                print(f"Could not interpolate temperatures for all surface vertices for t={t:.4f}. Filling with 0.")
+                interpolatedTemps = np.nan_to_num(interpolatedTemps, nan=0.0)
+            
+            interpolatedTempsList.append(interpolatedTemps)
+
+        # Find global min and max temperatures
+        allTemps = np.concatenate(interpolatedTempsList)
+        cmin = np.percentile(allTemps, 10)
+        cmax = np.percentile(allTemps, 90)
+
+        # Create Plotly figure
+        fig = go.Figure()
+
+        # Add a mesh trace for each time step
+        for i, interpolatedTemps in enumerate(interpolatedTempsList):
+            fig.add_trace(go.Mesh3d(
+                x=verts[:, 0],
+                y=verts[:, 1],
+                z=verts[:, 2],
+                i=faces[:, 0],
+                j=faces[:, 1],
+                k=faces[:, 2],
+                intensity=interpolatedTemps,
+                colorscale='Jet',
+                cmin=cmin,
+                cmax=cmax,
+                colorbar_title='Temperature',
+                name=f't = {timeValues[i]:.2f}',
+                visible=(i == 0)
+            ))
+
+        # Create slider
+        steps = []
+        for i in range(len(interpolatedTempsList)):
+            step = dict(
+                method="update",
+                args=[{"visible": [False] * len(interpolatedTempsList)},
+                      {"title": f"{title} (t={timeValues[i]:.2f})"}],
+            )
+            step["args"][0]["visible"][i] = True
+            steps.append(step)
+
+        sliders = [dict(
+            active=0,
+            currentvalue={"prefix": "Time: "},
+            pad={"t": 50},
+            steps=steps
+        )]
 
         fig.update_layout(
-            title=title,
+            title=f"{title} (t={timeValues[0]:.2f})",
             scene=dict(
                 xaxis_title='X',
                 yaxis_title='Y',
@@ -381,85 +453,86 @@ class HeatVisualization3D:
                 aspectmode='cube'
             ),
             width=900,
-            height=700
+            height=700,
+            sliders=sliders
         )
 
         # Save
-        output_path = os.path.join(self.save_dir, f"{save_name}.html")
-        plotly_plot(fig, filename=output_path, auto_open=False)
-        print(f"Surface heatmap saved to {output_path}")
+        outputPath = os.path.join(self.saveDir, f"{saveName}.html")
+        plotly_plot(fig, filename=outputPath, auto_open=False)
+        print(f"Surface heatmap saved to {outputPath}")
 
-        return fig
+        return fig, outputPath, outputPath, outputPath
     
-    def create_comparison_plot(self, pinn_data: Dict, numerical_data: Dict, 
-                              time_idx: int = -1, save_name: str = "comparison"):
+    def createComparisonPlot(self, pinnData: Dict, numericalData: Dict, 
+                              timeIdx: int = -1, saveName: str = "comparison"):
         """Create side-by-side comparison of PINN vs numerical solution"""
         
         # Extract PINN data
-        pinn_u = pinn_data['u']
-        X = pinn_data['X']
-        Y = pinn_data['Y'] 
-        Z = pinn_data['Z']
+        pinnU = pinnData['u']
+        X = pinnData['X']
+        Y = pinnData['Y'] 
+        Z = pinnData['Z']
         
         # Extract numerical data and convert to grid
-        num_u = numerical_data['solutions'][time_idx]
-        if len(num_u.shape) == 1:
-            num_u_grid = np.full(X.shape, np.nan)
-            num_u_grid[numerical_data['interior_indices']] = num_u
-            num_u = num_u_grid
+        numU = numericalData['solutions'][timeIdx]
+        if len(numU.shape) == 1:
+            numUGrid = np.full(X.shape, np.nan)
+            numUGrid[numericalData['interior_indices']] = numU
+            numU = numUGrid
         
         # Compute error where both solutions exist
-        mask_valid = ~(np.isnan(pinn_u) | np.isnan(num_u))
-        error = np.full_like(pinn_u, np.nan)
-        error[mask_valid] = np.abs(pinn_u[mask_valid] - num_u[mask_valid])
+        maskValid = ~(np.isnan(pinnU) | np.isnan(numU))
+        error = np.full_like(pinnU, np.nan)
+        error[maskValid] = np.abs(pinnU[maskValid] - numU[maskValid])
         
         # Create comparison figure
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         fig.suptitle('PINN vs Numerical Solution Comparison', fontsize=16)
         
         # Middle slice indices
-        nx, ny, nz = pinn_u.shape
-        mid_x, mid_y, mid_z = nx//2, ny//2, nz//2
+        nx, ny, nz = pinnU.shape
+        midX, midY, midZ = nx//2, ny//2, nz//2
         
         # PINN solution slices
-        im1 = axes[0,0].contourf(X[mid_z], Y[mid_z], pinn_u[mid_z], 
-                                levels=20, cmap=self.heat_cmap)
+        im1 = axes[0,0].contourf(X[midZ], Y[midZ], pinnU[midZ], 
+                                levels=20, cmap=self.heatCmap)
         axes[0,0].set_title('PINN - XY Slice')
         axes[0,0].set_xlabel('X')
         axes[0,0].set_ylabel('Y')
         plt.colorbar(im1, ax=axes[0,0])
         
-        im2 = axes[0,1].contourf(X[:,mid_y,:], Z[:,mid_y,:], pinn_u[:,mid_y,:],
-                                levels=20, cmap=self.heat_cmap)
+        im2 = axes[0,1].contourf(X[:,midY,:], Z[:,midY,:], pinnU[:,midY,:],
+                                levels=20, cmap=self.heatCmap)
         axes[0,1].set_title('PINN - XZ Slice')
         axes[0,1].set_xlabel('X')
         axes[0,1].set_ylabel('Z')
         plt.colorbar(im2, ax=axes[0,1])
         
-        im3 = axes[0,2].contourf(Y[mid_x], Z[mid_x], pinn_u[mid_x],
-                                levels=20, cmap=self.heat_cmap)
+        im3 = axes[0,2].contourf(Y[midX], Z[midX], pinnU[midX],
+                                levels=20, cmap=self.heatCmap)
         axes[0,2].set_title('PINN - YZ Slice')
         axes[0,2].set_xlabel('Y')
         axes[0,2].set_ylabel('Z')
         plt.colorbar(im3, ax=axes[0,2])
         
         # Numerical solution slices
-        im4 = axes[1,0].contourf(X[mid_z], Y[mid_z], num_u[mid_z],
-                                levels=20, cmap=self.heat_cmap)
+        im4 = axes[1,0].contourf(X[midZ], Y[midZ], numU[midZ],
+                                levels=20, cmap=self.heatCmap)
         axes[1,0].set_title('Numerical - XY Slice')
         axes[1,0].set_xlabel('X')
         axes[1,0].set_ylabel('Y')
         plt.colorbar(im4, ax=axes[1,0])
         
-        im5 = axes[1,1].contourf(X[:,mid_y,:], Z[:,mid_y,:], num_u[:,mid_y,:],
-                                levels=20, cmap=self.heat_cmap)
+        im5 = axes[1,1].contourf(X[:,midY,:], Z[:,midY,:], numU[:,midY,:],
+                                levels=20, cmap=self.heatCmap)
         axes[1,1].set_title('Numerical - XZ Slice')
         axes[1,1].set_xlabel('X')
         axes[1,1].set_ylabel('Z')
         plt.colorbar(im5, ax=axes[1,1])
         
-        im6 = axes[1,2].contourf(Y[mid_x], Z[mid_x], num_u[mid_x],
-                                levels=20, cmap=self.heat_cmap)
+        im6 = axes[1,2].contourf(Y[midX], Z[midX], numU[midX],
+                                levels=20, cmap=self.heatCmap)
         axes[1,2].set_title('Numerical - YZ Slice')
         axes[1,2].set_xlabel('Y')
         axes[1,2].set_ylabel('Z')
@@ -468,19 +541,19 @@ class HeatVisualization3D:
         plt.tight_layout()
         
         # Save comparison
-        output_path = os.path.join(self.save_dir, f"{save_name}_solutions.png")
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        outputPath = os.path.join(self.saveDir, f"{saveName}_solutions.png")
+        plt.savefig(outputPath, dpi=150, bbox_inches='tight')
         plt.show()
         
         # Create error analysis plot
-        self._plot_error_analysis(error, X, Y, Z, save_name)
+        self.plotErrorAnalysis(error, X, Y, Z, saveName)
         
-        print(f"Comparison plots saved with prefix {save_name}")
+        print(f"Comparison plots saved with prefix {saveName}")
         
         return fig
     
-    def _plot_error_analysis(self, error: np.ndarray, X: np.ndarray, Y: np.ndarray, Z: np.ndarray,
-                           save_name: str):
+    def plotErrorAnalysis(self, error: np.ndarray, X: np.ndarray, Y: np.ndarray, Z: np.ndarray,
+                           saveName: str):
         """Plot detailed error analysis"""
         
         fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -488,53 +561,53 @@ class HeatVisualization3D:
         
         # Middle slice indices
         nx, ny, nz = error.shape
-        mid_x, mid_y, mid_z = nx//2, ny//2, nz//2
+        midX, midY, midZ = nx//2, ny//2, nz//2
         
         # Error slices
-        im1 = axes[0,0].contourf(X[mid_z], Y[mid_z], error[mid_z],
-                                levels=20, cmap=self.error_cmap)
-        axes[0,0].set_title(f'Error - XY Slice (Z = {Z[mid_z,0,mid_z]:.2f})')
+        im1 = axes[0,0].contourf(X[midZ], Y[midZ], error[midZ],
+                                levels=20, cmap=self.errorCmap)
+        axes[0,0].set_title(f'Error - XY Slice (Z = {Z[midZ,0,midZ]:.2f})')
         axes[0,0].set_xlabel('X')
         axes[0,0].set_ylabel('Y')
         plt.colorbar(im1, ax=axes[0,0])
         
-        im2 = axes[0,1].contourf(X[:,mid_y,:], Z[:,mid_y,:], error[:,mid_y,:],
-                                levels=20, cmap=self.error_cmap)
-        axes[0,1].set_title(f'Error - XZ Slice (Y = {Y[0,mid_y,0]:.2f})')
+        im2 = axes[0,1].contourf(X[:,midY,:], Z[:,midY,:], error[:,midY,:],
+                                levels=20, cmap=self.errorCmap)
+        axes[0,1].set_title(f'Error - XZ Slice (Y = {Y[0,midY,0]:.2f})')
         axes[0,1].set_xlabel('X')
         axes[0,1].set_ylabel('Z')
         plt.colorbar(im2, ax=axes[0,1])
         
         # Error histogram
-        error_valid = error[~np.isnan(error)]
-        if len(error_valid) > 0:
-            axes[1,0].hist(error_valid, bins=50, alpha=0.7, color='red', edgecolor='black')
+        errorValid = error[~np.isnan(error)]
+        if len(errorValid) > 0:
+            axes[1,0].hist(errorValid, bins=50, alpha=0.7, color='red', edgecolor='black')
             axes[1,0].set_xlabel('Absolute Error')
             axes[1,0].set_ylabel('Frequency')
             axes[1,0].set_title('Error Distribution')
             axes[1,0].grid(True, alpha=0.3)
             
             # Error statistics
-            mean_error = np.mean(error_valid)
-            max_error = np.max(error_valid)
-            std_error = np.std(error_valid)
+            meanError = np.mean(errorValid)
+            maxError = np.max(errorValid)
+            stdError = np.std(errorValid)
             
-            axes[1,0].axvline(mean_error, color='blue', linestyle='--', 
-                             label=f'Mean: {mean_error:.4f}')
-            axes[1,0].axvline(max_error, color='red', linestyle='--',
-                             label=f'Max: {max_error:.4f}')
+            axes[1,0].axvline(meanError, color='blue', linestyle='--', 
+                             label=f'Mean: {meanError:.4f}')
+            axes[1,0].axvline(maxError, color='red', linestyle='--',
+                             label=f'Max: {maxError:.4f}')
             axes[1,0].legend()
         
         # Error statistics text
-        if len(error_valid) > 0:
-            stats_text = f"""Error Statistics:
-Mean Error: {np.mean(error_valid):.4e}
-Max Error: {np.max(error_valid):.4e}
-Std Error: {np.std(error_valid):.4e}
-L2 Error: {np.sqrt(np.mean(error_valid**2)):.4e}
-Valid Points: {len(error_valid)}"""
+        if len(errorValid) > 0:
+            statsText = f"""Error Statistics:
+Mean Error: {np.mean(errorValid):.4e}
+Max Error: {np.max(errorValid):.4e}
+Std Error: {np.std(errorValid):.4e}
+L2 Error: {np.sqrt(np.mean(errorValid**2)):.4e}
+Valid Points: {len(errorValid)}"""
             
-            axes[1,1].text(0.1, 0.9, stats_text, transform=axes[1,1].transAxes,
+            axes[1,1].text(0.1, 0.9, statsText, transform=axes[1,1].transAxes,
                           fontsize=12, verticalalignment='top', 
                           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
             axes[1,1].set_title('Error Statistics')
@@ -543,27 +616,27 @@ Valid Points: {len(error_valid)}"""
         plt.tight_layout()
         
         # Save error plot
-        output_path = os.path.join(self.save_dir, f"{save_name}_error.png")
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        outputPath = os.path.join(self.saveDir, f"{saveName}_error.png")
+        plt.savefig(outputPath, dpi=150, bbox_inches='tight')
         plt.show()
-        print(f"Error analysis saved to {output_path}")
+        print(f"Error analysis saved to {outputPath}")
     
-    def create_animation(self, solution_data: Dict, fps: int = 10,
+    def createAnimation(self, solutionData: Dict, fps: int = 10,
                         title: str = "Heat Diffusion Animation",
-                        save_name: str = "animation"):
+                        saveName: str = "animation"):
         """Create animated visualization of heat diffusion over time"""
         
-        times = solution_data['times']
-        solutions = solution_data['solutions']
+        times = solutionData['times']
+        solutions = solutionData['solutions']
         
         if len(solutions) < 2:
             print("Need at least 2 time points for animation")
             return None
         
         # Get grid data
-        X = solution_data.get('X')
-        Y = solution_data.get('Y')
-        Z = solution_data.get('Z')
+        X = solutionData.get('X')
+        Y = solutionData.get('Y')
+        Z = solutionData.get('Z')
         
         # Setup figure for animation
         fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -580,10 +653,10 @@ Valid Points: {len(error_valid)}"""
             z = np.linspace(0, 1, nz)
             X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
         
-        mid_x, mid_y, mid_z = nx//2, ny//2, nz//2
+        midX, midY, midZ = nx//2, ny//2, nz//2
         
         # Initialize plots
-        def init_frame():
+        def initFrame():
             for ax in axes.flat:
                 ax.clear()
             return []
@@ -599,40 +672,40 @@ Valid Points: {len(error_valid)}"""
             
             # Convert to grid if needed
             if len(u.shape) == 1:
-                u_grid = np.full(X.shape, np.nan)
-                if 'interior_indices' in solution_data:
-                    u_grid[solution_data['interior_indices']] = u
-                u = u_grid
+                uGrid = np.full(X.shape, np.nan)
+                if 'interior_indices' in solutionData:
+                    uGrid[solutionData['interior_indices']] = u
+                u = uGrid
             
             # Determine global colormap range
-            u_min = np.nanmin([np.nanmin(sol) for sol in solutions if len(sol) > 0])
-            u_max = np.nanmax([np.nanmax(sol) for sol in solutions if len(sol) > 0])
+            uMin = np.nanmin([np.nanmin(sol) for sol in solutions if len(sol) > 0])
+            uMax = np.nanmax([np.nanmax(sol) for sol in solutions if len(sol) > 0])
             
             # XY slice
-            im1 = axes[0,0].contourf(X[mid_z], Y[mid_z], u[mid_z],
-                                    levels=20, cmap=self.heat_cmap, 
-                                    vmin=u_min, vmax=u_max)
+            im1 = axes[0,0].contourf(X[midZ], Y[midZ], u[midZ],
+                                    levels=20, cmap=self.heatCmap, 
+                                    vmin=uMin, vmax=uMax)
             axes[0,0].set_title(f'XY Slice - t = {times[frame]:.3f}')
             axes[0,0].set_xlabel('X')
             axes[0,0].set_ylabel('Y')
             
             # XZ slice
-            im2 = axes[0,1].contourf(X[:,mid_y,:], Z[:,mid_y,:], u[:,mid_y,:],
-                                    levels=20, cmap=self.heat_cmap,
-                                    vmin=u_min, vmax=u_max)
+            im2 = axes[0,1].contourf(X[:,midY,:], Z[:,midY,:], u[:,midY,:],
+                                    levels=20, cmap=self.heatCmap,
+                                    vmin=uMin, vmax=uMax)
             axes[0,1].set_title(f'XZ Slice - t = {times[frame]:.3f}')
             axes[0,1].set_xlabel('X')
             axes[0,1].set_ylabel('Z')
             
             # Temperature evolution plot
-            max_temps = [np.nanmax(sol) for sol in solutions[:frame+1]]
-            axes[1,0].plot(times[:frame+1], max_temps, 'r-', linewidth=2)
+            maxTemps = [np.nanmax(sol) for sol in solutions[:frame+1]]
+            axes[1,0].plot(times[:frame+1], maxTemps, 'r-', linewidth=2)
             axes[1,0].set_xlabel('Time')
             axes[1,0].set_ylabel('Max Temperature')
             axes[1,0].set_title('Temperature Evolution')
             axes[1,0].grid(True, alpha=0.3)
             axes[1,0].set_xlim(times[0], times[-1])
-            axes[1,0].set_ylim(0, u_max * 1.1)
+            axes[1,0].set_ylim(0, uMax * 1.1)
             
             # Current time marker
             axes[1,1].clear()
@@ -649,20 +722,20 @@ Valid Points: {len(error_valid)}"""
             return []
         
         # Create animation
-        anim = FuncAnimation(fig, animate, init_func=init_frame,
+        anim = FuncAnimation(fig, animate, init_func=initFrame,
                            frames=len(solutions), interval=1000//fps, blit=False)
         
         # Save as GIF
-        gif_path = os.path.join(self.save_dir, f"{save_name}.gif")
-        anim.save(gif_path, writer=PillowWriter(fps=fps), dpi=100)
-        print(f"Animation saved to {gif_path}")
+        gifPath = os.path.join(self.saveDir, f"{saveName}.gif")
+        anim.save(gifPath, writer=PillowWriter(fps=fps), dpi=100)
+        print(f"Animation saved to {gifPath}")
         
         plt.show()
         return anim
     
-    def plot_heat_sources(self, heat_sources: List[Dict], domain: Domain3D,
+    def plotHeatSources(self, heatSources: List[Dict], domain: Domain3D,
                          title: str = "Heat Source Configuration",
-                         save_name: str = "heat_sources"):
+                         saveName: str = "heat_sources"):
         """Visualize heat source locations and domain"""
         
         fig = plt.figure(figsize=(12, 8))
@@ -671,26 +744,26 @@ Valid Points: {len(error_valid)}"""
         ax3d = fig.add_subplot(121, projection='3d')
         
         # Plot domain boundary (sample points)
-        grid_data = domain.generate_grid(32, 32, 32)
-        X, Y, Z = grid_data['X'], grid_data['Y'], grid_data['Z']
-        mask = grid_data['mask']
+        gridData = domain.generateGrid(32, 32, 32)
+        X, Y, Z = gridData['X'], gridData['Y'], gridData['Z']
+        mask = gridData['mask']
         
         # Plot domain boundary
-        boundary_points = []
+        boundaryPoints = []
         for i in range(0, X.shape[0], 4):
             for j in range(0, X.shape[1], 4):
                 for k in range(0, X.shape[2], 4):
                     if mask[i,j,k]:
-                        boundary_points.append([X[i,j,k], Y[i,j,k], Z[i,j,k]])
+                        boundaryPoints.append([X[i,j,k], Y[i,j,k], Z[i,j,k]])
         
-        if boundary_points:
-            boundary_points = np.array(boundary_points)
-            ax3d.scatter(boundary_points[:,0], boundary_points[:,1], boundary_points[:,2],
+        if boundaryPoints:
+            boundaryPoints = np.array(boundaryPoints)
+            ax3d.scatter(boundaryPoints[:,0], boundaryPoints[:,1], boundaryPoints[:,2],
                         c='lightblue', alpha=0.1, s=1)
         
         # Plot heat sources
         colors = ['red', 'orange', 'yellow', 'purple', 'green']
-        for i, source in enumerate(heat_sources):
+        for i, source in enumerate(heatSources):
             x0, y0, z0 = source['position']
             amplitude = source['amplitude']
             sigma = source.get('sigma', 0.05)
@@ -705,11 +778,11 @@ Valid Points: {len(error_valid)}"""
             phi = np.linspace(0, np.pi, 20)
             r = 3 * sigma  # 3-sigma region
             
-            x_sphere = x0 + r * np.outer(np.cos(theta), np.sin(phi))
-            y_sphere = y0 + r * np.outer(np.sin(theta), np.sin(phi))
-            z_sphere = z0 + r * np.outer(np.ones(np.size(theta)), np.cos(phi))
+            xSphere = x0 + r * np.outer(np.cos(theta), np.sin(phi))
+            ySphere = y0 + r * np.outer(np.sin(theta), np.sin(phi))
+            zSphere = z0 + r * np.outer(np.ones(np.size(theta)), np.cos(phi))
             
-            ax3d.plot_wireframe(x_sphere, y_sphere, z_sphere, 
+            ax3d.plot_wireframe(xSphere, ySphere, zSphere, 
                                alpha=0.3, color=colors[i % len(colors)])
         
         ax3d.set_xlabel('X')
@@ -722,19 +795,19 @@ Valid Points: {len(error_valid)}"""
         ax2d = fig.add_subplot(122)
         
         # Plot domain outline in XY
-        x_bounds, y_bounds, z_bounds = domain.bounds()
+        xBounds, yBounds, zBounds = domain.bounds()
         
         # Sample domain boundary in XY plane
-        x_test = np.linspace(x_bounds[0], x_bounds[1], 100)
-        y_test = np.linspace(y_bounds[0], y_bounds[1], 100)
-        X_test, Y_test = np.meshgrid(x_test, y_test)
-        Z_test = np.full_like(X_test, (z_bounds[0] + z_bounds[1]) / 2)
+        xTest = np.linspace(xBounds[0], xBounds[1], 100)
+        yTest = np.linspace(yBounds[0], yBounds[1], 100)
+        XTest, YTest = np.meshgrid(xTest, yTest)
+        ZTest = np.full_like(XTest, (zBounds[0] + zBounds[1]) / 2)
         
-        inside_mask = domain.is_inside(X_test, Y_test, Z_test)
-        ax2d.contour(X_test, Y_test, inside_mask.astype(float), levels=[0.5], colors='black')
+        insideMask = domain.isInside(XTest, YTest, ZTest)
+        ax2d.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colors='black')
         
         # Plot heat sources
-        for i, source in enumerate(heat_sources):
+        for i, source in enumerate(heatSources):
             x0, y0, z0 = source['position']
             amplitude = source['amplitude']
             sigma = source.get('sigma', 0.05)
@@ -758,74 +831,74 @@ Valid Points: {len(error_valid)}"""
         plt.tight_layout()
         
         # Save
-        output_path = os.path.join(self.save_dir, f"{save_name}.png")
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        outputPath = os.path.join(self.saveDir, f"{saveName}.png")
+        plt.savefig(outputPath, dpi=150, bbox_inches='tight')
         plt.show()
-        print(f"Heat source visualization saved to {output_path}")
+        print(f"Heat source visualization saved to {outputPath}")
         
         return fig
 
-def visualize_training_results(model_path: str, numerical_path: Optional[str] = None,
-                             t_eval: float = 1.0, device: str = 'cpu'):
+def visualizeTrainingResults(modelPath: str, numericalPath: Optional[str] = None,
+                             tEval: float = 1.0, device: str = 'cpu'):
     """Complete visualization pipeline for trained model"""
     
     print(f"\n=== Visualization Pipeline ===")
-    print(f"Model: {model_path}")
-    if numerical_path:
-        print(f"Numerical: {numerical_path}")
-    print(f"Evaluation time: {t_eval}")
+    print(f"Model: {modelPath}")
+    if numericalPath:
+        print(f"Numerical: {numericalPath}")
+    print(f"Evaluation time: {tEval}")
     
     # Load trained model
-    model, checkpoint = load_trained_model(model_path, device)
-    domain_name = checkpoint['domain_name']
-    heat_sources = checkpoint['heat_sources']
+    model, checkpoint = loadTrainedModel(modelPath, device)
+    domainName = checkpoint['domain_name']
+    heatSources = checkpoint['heat_sources']
     
-    print(f"Loaded model for domain: {domain_name}")
-    print(f"Heat sources: {len(heat_sources)}")
+    print(f"Loaded model for domain: {domainName}")
+    print(f"Heat sources: {len(heatSources)}")
     
     # Create domain
-    domain = DomainFactory.create_domain(domain_name.lower())
+    domain = DomainFactory.createDomain(domainName.lower())
     
     # Initialize visualizer
     viz = HeatVisualization3D()
     
     # Plot heat source configuration
-    viz.plot_heat_sources(heat_sources, domain, save_name=f"sources_{domain_name}")
+    viz.plotHeatSources(heatSources, domain, saveName=f"sources_{domainName}")
     
     # Predict PINN solution
     print("Predicting PINN solution...")
-    pinn_solution = predict_solution_3d(model, domain, t_eval, nx=48, ny=48, nz=48, device=device)
+    pinnSolution = predictSolution3d(model, domain, tEval, nX=48, nY=48, nZ=48, device=device)
     
     # Create PINN visualizations
     print("Creating PINN visualizations...")
-    viz.plot_3d_isosurfaces(pinn_solution, title=f"PINN Solution - {domain_name}", 
-                           save_name=f"pinn_iso_{domain_name}")
+    viz.plot3dIsosurfaces(pinnSolution, title=f"PINN Solution - {domainName}", 
+                           saveName=f"pinn_iso_{domainName}")
     
-    viz._plot_matplotlib_slices(pinn_solution, title=f"PINN Solution - {domain_name}",
-                               save_name=f"pinn_slices_{domain_name}")
+    viz.plotMatplotlibSlices(pinnSolution, title=f"PINN Solution - {domainName}",
+                               saveName=f"pinn_slices_{domainName}")
     
     # Load and visualize numerical solution if available
-    if numerical_path and os.path.exists(numerical_path):
+    if numericalPath and os.path.exists(numericalPath):
         print("Loading numerical solution...")
-        with open(numerical_path, 'rb') as f:
-            numerical_data = pickle.load(f)
+        with open(numericalPath, 'rb') as f:
+            numericalData = pickle.load(f)
         
         # Find closest time point
-        time_idx = np.argmin(np.abs(numerical_data['times'] - t_eval))
-        actual_time = numerical_data['times'][time_idx]
-        print(f"Using numerical solution at t = {actual_time:.4f}")
+        timeIdx = np.argmin(np.abs(numericalData['times'] - tEval))
+        actualTime = numericalData['times'][timeIdx]
+        print(f"Using numerical solution at t = {actualTime:.4f}")
         
         # Create comparison
         print("Creating comparison plots...")
-        viz.create_comparison_plot(pinn_solution, numerical_data, time_idx, 
-                                  save_name=f"comparison_{domain_name}")
+        viz.createComparisonPlot(pinnSolution, numericalData, timeIdx, 
+                                  saveName=f"comparison_{domainName}")
         
         # Create animation if multiple time points
-        if len(numerical_data['times']) > 5:
+        if len(numericalData['times']) > 5:
             print("Creating animation...")
-            viz.create_animation(numerical_data, fps=5, 
-                               title=f"Heat Diffusion - {domain_name}",
-                               save_name=f"animation_{domain_name}")
+            viz.createAnimation(numericalData, fps=5, 
+                               title=f"Heat Diffusion - {domainName}",
+                               saveName=f"animation_{domainName}")
     
     print("Visualization complete!")
 
@@ -840,4 +913,4 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    visualize_training_results(args.model_path, args.numerical_path, args.t_eval, args.device)
+    visualizeTrainingResults(args.model_path, args.numerical_path, args.t_eval, args.device)

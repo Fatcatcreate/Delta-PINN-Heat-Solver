@@ -14,35 +14,35 @@ import time
 import csv
 from tqdm import tqdm
 from typing import List, Tuple, Dict, Optional
-from domain_shapes import Domain3D, DomainFactory, generate_interior_points, generate_boundary_points
+from domain_shapes import Domain3D, DomainFactory, generateInteriorPoints, generateBoundaryPoints
 
-def set_seed(seed=1337):
+def setSeed(seed=1337):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
 class FourierFeatureEmbedding(nn.Module):
     """Fourier feature embedding for better high-frequency learning"""
     
-    def __init__(self, input_dim: int, embed_dim: int, scale: float = 1.0):
+    def __init__(self, inputDim: int, embedDim: int, scale: float = 1.0):
         super().__init__()
-        self.embed_dim = embed_dim
+        self.embedDim = embedDim
         # Fixed random frequencies
-        self.register_buffer('B', torch.randn(input_dim, embed_dim // 2) * scale)
+        self.register_buffer('B', torch.randn(inputDim, embedDim // 2) * scale)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x shape: [N, input_dim]
-        x_proj = 2 * np.pi * x @ self.B  # [N, embed_dim//2]
-        return torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
+        # x shape: [N, inputDim]
+        xProj = 2 * np.pi * x @ self.B  # [N, embedDim//2]
+        return torch.cat([torch.sin(xProj), torch.cos(xProj)], dim=-1)
 
 class ResidualBlock(nn.Module):
     """Residual block with skip connections"""
     
-    def __init__(self, hidden_dim: int, activation=nn.Tanh()):
+    def __init__(self, hiddenDim: int, activation=nn.Tanh()):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hiddenDim, hiddenDim),
             activation,
-            nn.Linear(hidden_dim, hidden_dim)
+            nn.Linear(hiddenDim, hiddenDim)
         )
         self.activation = activation
     
@@ -52,70 +52,70 @@ class ResidualBlock(nn.Module):
 class DeltaPINN3D(nn.Module):
     """Delta-PINN for 3D heat diffusion with advanced architecture"""
     
-    def __init__(self, hidden_size: int = 128, num_layers: int = 6, 
-                 use_fourier: bool = True, fourier_scale: float = 1.0,
-                 use_residual: bool = True):
+    def __init__(self, hiddenSize: int = 128, numLayers: int = 6, 
+                 useFourier: bool = True, fourierScale: float = 1.0,
+                 useResidual: bool = True):
         super().__init__()
         
-        self.use_fourier = use_fourier
-        self.use_residual = use_residual
+        self.useFourier = useFourier
+        self.useResidual = useResidual
         
         # Input processing
-        if use_fourier:
-            self.fourier_embed = FourierFeatureEmbedding(4, hidden_size, fourier_scale)  # (x,y,z,t)
-            input_dim = hidden_size
+        if useFourier:
+            self.fourierEmbed = FourierFeatureEmbedding(4, hiddenSize, fourierScale)  # (x,y,z,t)
+            inputDim = hiddenSize
         else:
-            input_dim = 4
-            self.input_layer = nn.Linear(4, hidden_size)
+            inputDim = 4
+            self.inputLayer = nn.Linear(4, hiddenSize)
         
         # Hidden layers
         layers = []
-        for i in range(num_layers):
-            if use_residual and i > 0:
-                layers.append(ResidualBlock(hidden_size))
+        for i in range(numLayers):
+            if useResidual and i > 0:
+                layers.append(ResidualBlock(hiddenSize))
             else:
-                layers.append(nn.Linear(hidden_size if i > 0 or use_fourier else input_dim, hidden_size))
+                layers.append(nn.Linear(hiddenSize if i > 0 or useFourier else inputDim, hiddenSize))
                 layers.append(nn.Tanh())
         
-        self.hidden_layers = nn.ModuleList(layers)
+        self.hiddenLayers = nn.ModuleList(layers)
         
         # Output layer
-        self.output_layer = nn.Linear(hidden_size, 1)
+        self.outputLayer = nn.Linear(hiddenSize, 1)
         
         # Adaptive loss weights (trainable)
-        self.log_sigma_pde = nn.Parameter(torch.zeros(1))
-        self.log_sigma_bc = nn.Parameter(torch.zeros(1))
-        self.log_sigma_ic = nn.Parameter(torch.zeros(1))
+        self.logSigmaPde = nn.Parameter(torch.zeros(1))
+        self.logSigmaBc = nn.Parameter(torch.zeros(1))
+        self.logSigmaIc = nn.Parameter(torch.zeros(1))
         
-        self._initialize_weights()
+        self.initializeWeights()
     
-    def _initialize_weights(self):
+    def initializeWeights(self):
         """Xavier initialization with special handling for residual blocks"""
-        def init_weights(m):
+        def initWeights(m):
             if isinstance(m, nn.Linear):
                 nn.init.xavier_normal_(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
         
-        self.apply(init_weights)
+        self.apply(initWeights)
     
     def forward(self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         # Normalize inputs to [-1, 1] for better convergence
-        x_norm = 2 * x - 1  
-        y_norm = 2 * y - 1
-        z_norm = 2 * z - 1
-        t_norm = 2 * t - 1
+        xNorm = 2 * x - 1  
+        yNorm = 2 * y - 1
+        zNorm = 2 * z - 1
+        tNorm = 2 * t - 1
         
-        inputs = torch.cat([x_norm, y_norm, z_norm, t_norm], dim=1)
+        inputs = torch.cat([xNorm, yNorm, zNorm, tNorm], dim=1)
         
         # Feature embedding
-        if self.use_fourier:
-            h = self.fourier_embed(inputs)
+        if self.useFourier:
+            h = self.fourierEmbed(inputs)
         else:
-            h = torch.tanh(self.input_layer(inputs))
+            h = torch.tanh(self.inputLayer(inputs))
         
         # Hidden layers
-        for layer in self.hidden_layers:
+        for layer in self.hiddenLayers:
             if isinstance(layer, ResidualBlock):
                 h = layer(h)
             elif isinstance(layer, nn.Linear):
@@ -123,21 +123,21 @@ class DeltaPINN3D(nn.Module):
             else:  # Activation
                 h = layer(h)
         
-        return self.output_layer(h)
+        return self.outputLayer(h)
     
-    def get_adaptive_weights(self) -> Tuple[float, float, float]:
+    def getAdaptiveWeights(self) -> Tuple[float, float, float]:
         """Get current adaptive loss weights"""
         return (
-            torch.exp(-self.log_sigma_pde).item(),
-            torch.exp(-self.log_sigma_bc).item(), 
-            torch.exp(-self.log_sigma_ic).item()
+            torch.exp(-self.logSigmaPde).item(),
+            torch.exp(-self.logSigmaBc).item(), 
+            torch.exp(-self.logSigmaIc).item()
         )
 
-def create_multi_source_ic(heat_sources: List[Dict], X: np.ndarray, Y: np.ndarray, Z: np.ndarray) -> np.ndarray:
+def createMultiSourceIc(heatSources: List[Dict], X: np.ndarray, Y: np.ndarray, Z: np.ndarray) -> np.ndarray:
     """Create multi-source initial condition"""
     ic = np.zeros_like(X)
     
-    for source in heat_sources:
+    for source in heatSources:
         x0, y0, z0 = source['position']
         amplitude = source['amplitude']
         sigma = source.get('sigma', 0.05)
@@ -147,112 +147,113 @@ def create_multi_source_ic(heat_sources: List[Dict], X: np.ndarray, Y: np.ndarra
     
     return ic
 
-def generate_training_data_3d(domain: Domain3D, n_pde: int = 8000, n_bc: int = 2000, 
-                             n_ic: int = 2000, device: str = 'cpu') -> Tuple:
+def generateTrainingData3d(domain: Domain3D, nPde: int = 8000, nBc: int = 2000, 
+                             nIc: int = 2000, device: str = 'cpu') -> Tuple:
     """Generate 3D training data with domain constraints"""
     
     # PDE interior points
-    x_pde, y_pde, z_pde = generate_interior_points(domain, n_pde, device)
-    t_pde = torch.rand(len(x_pde), 1, device=device, requires_grad=True)
+    xPde, yPde, zPde = generateInteriorPoints(domain, nPde, device)
+    tPde = torch.rand(len(xPde), 1, device=device, requires_grad=True)
     
     # Boundary points
-    x_bc, y_bc, z_bc = generate_boundary_points(domain, n_bc, device)
-    t_bc = torch.rand(len(x_bc), 1, device=device, requires_grad=True)
+    xBc, yBc, zBc = generateBoundaryPoints(domain, nBc, device)
+    tBc = torch.rand(len(xBc), 1, device=device, requires_grad=True)
     
     # Initial condition points (t=0)
-    x_ic, y_ic, z_ic = generate_interior_points(domain, n_ic, device)
-    t_ic = torch.zeros(len(x_ic), 1, device=device, requires_grad=True)
+    xIc, yIc, zIc = generateInteriorPoints(domain, nIc, device)
+    tIc = torch.zeros(len(xIc), 1, device=device, requires_grad=True)
     
-    return (x_pde, y_pde, z_pde, t_pde), (x_bc, y_bc, z_bc, t_bc), (x_ic, y_ic, z_ic, t_ic)
+    return (xPde, yPde, zPde, tPde), (xBc, yBc, zBc, tBc), (xIc, yIc, zIc, tIc)
 
-def compute_pde_loss_3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor, 
+def computePdeLoss3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor, 
                        z: torch.Tensor, t: torch.Tensor, alpha: float = 0.01) -> torch.Tensor:
     """3D heat equation residual: ∂u/∂t = α(∂²u/∂x² + ∂²u/∂y² + ∂²u/∂z²)"""
     u = model(x, y, z, t)
     
     # First derivatives
-    u_t = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), 
+    uT = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), 
                              create_graph=True, retain_graph=True)[0]
-    u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), 
+    uX = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), 
                              create_graph=True, retain_graph=True)[0]
-    u_y = torch.autograd.grad(u, y, grad_outputs=torch.ones_like(u), 
+    uY = torch.autograd.grad(u, y, grad_outputs=torch.ones_like(u), 
                              create_graph=True, retain_graph=True)[0]
-    u_z = torch.autograd.grad(u, z, grad_outputs=torch.ones_like(u), 
+    uZ = torch.autograd.grad(u, z, grad_outputs=torch.ones_like(u), 
                              create_graph=True, retain_graph=True)[0]
     
     # Second derivatives
-    u_xx = torch.autograd.grad(u_x, x, grad_outputs=torch.ones_like(u_x), 
+    uXX = torch.autograd.grad(uX, x, grad_outputs=torch.ones_like(uX), 
                               create_graph=True, retain_graph=True)[0]
-    u_yy = torch.autograd.grad(u_y, y, grad_outputs=torch.ones_like(u_y), 
+    uYY = torch.autograd.grad(uY, y, grad_outputs=torch.ones_like(uY), 
                               create_graph=True, retain_graph=True)[0]
-    u_zz = torch.autograd.grad(u_z, z, grad_outputs=torch.ones_like(u_z), 
+    uZZ = torch.autograd.grad(uZ, z, grad_outputs=torch.ones_like(uZ), 
                               create_graph=True, retain_graph=True)[0]
     
     # PDE residual
-    laplacian = u_xx + u_yy + u_zz
-    pde_residual = u_t - alpha * laplacian
+    laplacian = uXX + uYY + uZZ
+    pdeResidual = uT - alpha * laplacian
     
-    return torch.mean(pde_residual**2)
+    return torch.mean(pdeResidual**2)
 
-def compute_bc_loss_3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor, 
+def computeBcLoss3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor, 
                       z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
     """Boundary condition loss (Dirichlet u=0)"""
-    u_bc = model(x, y, z, t)
-    return torch.mean(u_bc**2)
+    uBc = model(x, y, z, t)
+    return torch.mean(uBc**2)
 
-def compute_ic_loss_3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor, 
-                      z: torch.Tensor, t: torch.Tensor, heat_sources: List[Dict]) -> torch.Tensor:
+def computeIcLoss3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor, 
+                      z: torch.Tensor, t: torch.Tensor, heatSources: List[Dict]) -> torch.Tensor:
     """Initial condition loss with multi-source support"""
-    u_ic = model(x, y, z, t)
+    uIc = model(x, y, z, t)
     
     # Convert to numpy for IC computation
-    x_np = x.detach().cpu().numpy().flatten()
-    y_np = y.detach().cpu().numpy().flatten()
-    z_np = z.detach().cpu().numpy().flatten()
+    xNp = x.detach().cpu().numpy().flatten()
+    yNp = y.detach().cpu().numpy().flatten()
+    zNp = z.detach().cpu().numpy().flatten()
     
     # Create true IC values for each point
-    u_true_list = []
-    for i in range(len(x_np)):
-        u_val = 0.0
-        for source in heat_sources:
+    uTrueList = []
+    for i in range(len(xNp)):
+        uVal = 0.0
+        for source in heatSources:
             x0, y0, z0 = source['position']
             amplitude = source['amplitude']
             sigma = source.get('sigma', 0.05)
             
             # Gaussian heat source
-            u_val += amplitude * np.exp(-((x_np[i] - x0)**2 + (y_np[i] - y0)**2 + (z_np[i] - z0)**2) / (2 * sigma**2))
+            uVal += amplitude * np.exp(-((xNp[i] - x0)**2 + (yNp[i] - y0)**2 + (zNp[i] - z0)**2) / (2 * sigma**2))
         
-        u_true_list.append(u_val)
+        uTrueList.append(uVal)
     
-    u_true_tensor = torch.tensor(u_true_list, dtype=torch.float32, device=x.device).unsqueeze(1)
+    uTrueTensor = torch.tensor(uTrueList, dtype=torch.float32, device=x.device).unsqueeze(1)
     
-    return torch.mean((u_ic - u_true_tensor)**2)
+    return torch.mean((uIc - uTrueTensor)**2)
 
 class CurriculumScheduler:
     """Curriculum learning scheduler for progressive training"""
     
-    def __init__(self, initial_complexity: float = 0.1, max_complexity: float = 1.0, 
-                 warmup_epochs: int = 1000):
-        self.initial_complexity = initial_complexity
-        self.max_complexity = max_complexity
-        self.warmup_epochs = warmup_epochs
-        self.current_epoch = 0
+    def __init__(self, initialComplexity: float = 0.1, maxComplexity: float = 1.0, 
+                 warmupEpochs: int = 1000):
+        super().__init__()
+        self.initialComplexity = initialComplexity
+        self.maxComplexity = maxComplexity
+        self.warmupEpochs = warmupEpochs
+        self.currentEpoch = 0
     
     def step(self) -> float:
         """Get current complexity factor"""
-        if self.current_epoch < self.warmup_epochs:
-            complexity = self.initial_complexity + (self.max_complexity - self.initial_complexity) * \
-                        (self.current_epoch / self.warmup_epochs)
+        if self.currentEpoch < self.warmupEpochs:
+            complexity = self.initialComplexity + (self.maxComplexity - self.initialComplexity) * \
+                        (self.currentEpoch / self.warmupEpochs)
         else:
-            complexity = self.max_complexity
+            complexity = self.maxComplexity
         
-        self.current_epoch += 1
+        self.currentEpoch += 1
         return complexity
 
-def train_delta_pinn_3d(args, domain: Domain3D, heat_sources: List[Dict]) -> DeltaPINN3D:
+def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCallback=None) -> DeltaPINN3D:
     """Main training loop for 3D Delta-PINN"""
     
-    set_seed(args.seed)
+    setSeed(args.seed)
     
     # Device setup
     if args.device == 'auto':
@@ -264,11 +265,11 @@ def train_delta_pinn_3d(args, domain: Domain3D, heat_sources: List[Dict]) -> Del
     
     # Initialize model
     model = DeltaPINN3D(
-        hidden_size=args.hidden_size,
-        num_layers=args.num_layers,
-        use_fourier=args.use_fourier,
-        fourier_scale=args.fourier_scale,
-        use_residual=args.use_residual
+        hiddenSize=args.hiddenSize,
+        numLayers=args.numLayers,
+        useFourier=args.useFourier,
+        fourierScale=args.fourierScale,
+        useResidual=args.useResidual
     ).to(device)
     
     # Optimizer
@@ -276,11 +277,11 @@ def train_delta_pinn_3d(args, domain: Domain3D, heat_sources: List[Dict]) -> Del
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=500, factor=0.5, min_lr=1e-6)
     
     # Curriculum scheduler
-    curriculum = CurriculumScheduler(warmup_epochs=args.warmup_epochs)
+    curriculum = CurriculumScheduler(warmupEpochs=args.warmupEpochs)
     
     # Training data
-    pde_data, bc_data, ic_data = generate_training_data_3d(
-        domain, args.n_pde, args.n_bc, args.n_ic, device
+    pdeData, bcData, icData = generateTrainingData3d(
+        domain, args.nPde, args.nBc, args.nIc, device
     )
     
     # Training history
@@ -292,12 +293,12 @@ def train_delta_pinn_3d(args, domain: Domain3D, heat_sources: List[Dict]) -> Del
         'adaptive_weights': []
     }
     
-    best_loss = float('inf')
-    best_model_state = None
+    bestLoss = float('inf')
+    bestModelState = None
     
     print(f"Starting training for {args.epochs} epochs...")
     
-    with tqdm(range(args.epochs), desc="Training") as pbar:
+    with open('output.txt', 'w') as f, tqdm(range(args.epochs), desc="Training", file=f) as pbar:
         for epoch in pbar:
             model.train()
             optimizer.zero_grad()
@@ -306,76 +307,82 @@ def train_delta_pinn_3d(args, domain: Domain3D, heat_sources: List[Dict]) -> Del
             complexity = curriculum.step()
             
             # Compute losses
-            pde_loss = compute_pde_loss_3d(model, *pde_data, args.alpha)
-            bc_loss = compute_bc_loss_3d(model, *bc_data)
-            ic_loss = compute_ic_loss_3d(model, *ic_data, heat_sources)
+            pdeLoss = computePdeLoss3d(model, *pdeData, args.alpha)
+            bcLoss = computeBcLoss3d(model, *bcData)
+            icLoss = computeIcLoss3d(model, *icData, heatSources)
             
             # Adaptive weights
-            w_pde, w_bc, w_ic = model.get_adaptive_weights()
+            wPde, wBc, wIc = model.getAdaptiveWeights()
             
             # Total loss with curriculum learning
-            total_loss = complexity * (w_pde * pde_loss + w_bc * bc_loss + w_ic * ic_loss)
+            totalLoss = complexity * (wPde * pdeLoss + wBc * bcLoss + wIc * icLoss)
             
             # Backward pass
-            total_loss.backward()
+            totalLoss.backward()
             
             # Gradient clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
             optimizer.step()
-            scheduler.step(total_loss)
+            scheduler.step(totalLoss)
             
             # Record history
-            history['total_loss'].append(total_loss.item())
-            history['pde_loss'].append(pde_loss.item())
-            history['bc_loss'].append(bc_loss.item())
-            history['ic_loss'].append(ic_loss.item())
-            history['adaptive_weights'].append([w_pde, w_bc, w_ic])
+            history['total_loss'].append(totalLoss.item())
+            history['pde_loss'].append(pdeLoss.item())
+            history['bc_loss'].append(bcLoss.item())
+            history['ic_loss'].append(icLoss.item())
+            history['adaptive_weights'].append([wPde, wBc, wIc])
             
             # Save best model
-            if total_loss.item() < best_loss:
-                best_loss = total_loss.item()
-                best_model_state = model.state_dict().copy()
+            if totalLoss.item() < bestLoss:
+                bestLoss = totalLoss.item()
+                bestModelState = model.state_dict().copy()
             
             # Update progress bar
             pbar.set_postfix({
-                'Total': f'{total_loss.item():.2e}',
-                'PDE': f'{pde_loss.item():.2e}',
-                'BC': f'{bc_loss.item():.2e}',
-                'IC': f'{ic_loss.item():.2e}',
+                'Total': f'{totalLoss.item():.2e}',
+                'PDE': f'{pdeLoss.item():.2e}',
+                'BC': f'{bcLoss.item():.2e}',
+                'IC': f'{icLoss.item():.2e}',
                 'LR': f'{optimizer.param_groups[0]["lr"]:.2e}'
             })
+
+            if progressCallback:
+                progressCallback(epoch, args.epochs, totalLoss.item())
             
             # Log progress
-            if epoch % args.log_interval == 0:
+            if epoch % args.logInterval == 0:
                 print(f"\nEpoch {epoch}/{args.epochs}")
-                print(f"Total Loss: {total_loss.item():.6e}")
-                print(f"PDE Loss: {pde_loss.item():.6e}")
-                print(f"BC Loss: {bc_loss.item():.6e}")
-                print(f"IC Loss: {ic_loss.item():.6e}")
-                print(f"Adaptive Weights: PDE={w_pde:.3f}, BC={w_bc:.3f}, IC={w_ic:.3f}")
+                print(f"Total Loss: {totalLoss.item():.6e}")
+                print(f"PDE Loss: {pdeLoss.item():.6e}")
+                print(f"BC Loss: {bcLoss.item():.6e}")
+                print(f"IC Loss: {icLoss.item():.6e}")
+                print(f"Adaptive Weights: PDE={wPde:.3f}, BC={wBc:.3f}, IC={wIc:.3f}")
                 print(f"Learning Rate: {optimizer.param_groups[0]['lr']:.2e}")
     
     # Load best model
-    if best_model_state is not None:
-        model.load_state_dict(best_model_state)
-        print(f"Loaded best model with loss: {best_loss:.6e}")
+    if bestModelState is not None:
+        model.load_state_dict(bestModelState)
+        print(f"Loaded best model with loss: {bestLoss:.6e}")
     
     # Save model and history
-    os.makedirs(args.save_dir, exist_ok=True)
+    os.makedirs(args.saveDir, exist_ok=True)
     
-    model_path = os.path.join(args.save_dir, f"delta_pinn_3d_{domain.name.lower()}.pt")
+    domain_filename = os.path.basename(domain.name)
+    domain_name_sanitized = os.path.splitext(domain_filename)[0]
+
+    modelPath = os.path.join(args.saveDir, f"delta_pinn_3d_{domain_name_sanitized.lower()}.pt")
     torch.save({
         'model_state_dict': model.state_dict(),
         'history': history,
         'args': vars(args),
         'domain_name': domain.name,
-        'heat_sources': heat_sources
-    }, model_path)
+        'heat_sources': heatSources
+    }, modelPath)
     
     # Save training history to CSV
-    history_path = os.path.join(args.save_dir, f"training_history_{domain.name.lower()}.csv")
-    with open(history_path, 'w', newline='') as csvfile:
+    historyPath = os.path.join(args.saveDir, f"training_history_{domain_name_sanitized.lower()}.csv")
+    with open(historyPath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Epoch', 'Total_Loss', 'PDE_Loss', 'BC_Loss', 'IC_Loss', 
                         'Weight_PDE', 'Weight_BC', 'Weight_IC'])
@@ -386,23 +393,23 @@ def train_delta_pinn_3d(args, domain: Domain3D, heat_sources: List[Dict]) -> Del
         )):
             writer.writerow([i, total, pde, bc, ic, weights[0], weights[1], weights[2]])
     
-    print(f"Model saved to: {model_path}")
-    print(f"History saved to: {history_path}")
+    print(f"Model saved to: {modelPath}")
+    print(f"History saved to: {historyPath}")
     
     return model
 
-def load_trained_model(model_path: str, device: str = 'cpu') -> Tuple[DeltaPINN3D, Dict]:
+def loadTrainedModel(modelPath: str, device: str = 'cpu') -> Tuple[DeltaPINN3D, Dict]:
     """Load trained model and metadata"""
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(modelPath, map_location=device)
     
     # Recreate model with saved args
-    args_dict = checkpoint['args']
+    argsDict = checkpoint['args']
     model = DeltaPINN3D(
-        hidden_size=args_dict['hidden_size'],
-        num_layers=args_dict['num_layers'],
-        use_fourier=args_dict['use_fourier'],
-        fourier_scale=args_dict['fourier_scale'],
-        use_residual=args_dict['use_residual']
+        hiddenSize=argsDict['hidden_size'],
+        numLayers=argsDict['num_layers'],
+        useFourier=argsDict['use_fourier'],
+        fourierScale=argsDict['fourier_scale'],
+        useResidual=argsDict['use_residual']
     )
     
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -410,48 +417,48 @@ def load_trained_model(model_path: str, device: str = 'cpu') -> Tuple[DeltaPINN3
     
     return model, checkpoint
 
-def predict_solution_3d(model: DeltaPINN3D, domain: Domain3D, 
-                       t_eval: float, nx: int = 32, ny: int = 32, nz: int = 32,
+def predictSolution3d(model: DeltaPINN3D, domain: Domain3D, 
+                       tEval: float, nX: int = 32, nY: int = 32, nZ: int = 32,
                        device: str = 'cpu') -> Dict[str, np.ndarray]:
     """Predict solution on regular grid at given time"""
     
     # Generate grid
-    grid_data = domain.generate_grid(nx, ny, nz)
-    X, Y, Z, mask = grid_data['X'], grid_data['Y'], grid_data['Z'], grid_data['mask']
+    gridData = domain.generateGrid(nX, nY, nZ)
+    X, Y, Z, mask = gridData['X'], gridData['Y'], gridData['Z'], gridData['mask']
     
     # Flatten for network input
-    x_flat = X.flatten()
-    y_flat = Y.flatten()
-    z_flat = Z.flatten()
-    t_flat = np.full_like(x_flat, t_eval)
+    xFlat = X.flatten()
+    yFlat = Y.flatten()
+    zFlat = Z.flatten()
+    tFlat = np.full_like(xFlat, tEval)
     
     # Convert to tensors
-    x_tensor = torch.tensor(x_flat, dtype=torch.float32, device=device).unsqueeze(1)
-    y_tensor = torch.tensor(y_flat, dtype=torch.float32, device=device).unsqueeze(1)
-    z_tensor = torch.tensor(z_flat, dtype=torch.float32, device=device).unsqueeze(1)
-    t_tensor = torch.tensor(t_flat, dtype=torch.float32, device=device).unsqueeze(1)
+    xTensor = torch.tensor(xFlat, dtype=torch.float32, device=device).unsqueeze(1)
+    yTensor = torch.tensor(yFlat, dtype=torch.float32, device=device).unsqueeze(1)
+    zTensor = torch.tensor(zFlat, dtype=torch.float32, device=device).unsqueeze(1)
+    tTensor = torch.tensor(tFlat, dtype=torch.float32, device=device).unsqueeze(1)
     
     # Predict
     model.eval()
     with torch.no_grad():
-        u_pred = model(x_tensor, y_tensor, z_tensor, t_tensor)
+        uPred = model(xTensor, yTensor, zTensor, tTensor)
     
     # Reshape back to grid
-    u_pred_grid = u_pred.cpu().numpy().reshape(X.shape)
+    uPredGrid = uPred.cpu().numpy().reshape(X.shape)
     
     # Apply domain mask (set exterior to NaN)
-    u_pred_grid[~mask] = np.nan
+    uPredGrid[~mask] = np.nan
     
     return {
-        'x': grid_data['x'],
-        'y': grid_data['y'], 
-        'z': grid_data['z'],
+        'x': gridData['x'],
+        'y': gridData['y'], 
+        'z': gridData['z'],
         'X': X,
         'Y': Y,
         'Z': Z,
-        'u': u_pred_grid,
+        'u': uPredGrid,
         'mask': mask,
-        't': t_eval
+        't': tEval
     }
 
 def main():
@@ -502,32 +509,32 @@ def main():
     # Create heat sources
     np.random.seed(args.seed)
     bounds = domain.bounds()
-    heat_sources = []
+    heatSources = []
     
     for i in range(args.num_sources):
-        x_range = bounds[0]
-        y_range = bounds[1] 
-        z_range = bounds[2]
+        xRange = bounds[0]
+        yRange = bounds[1] 
+        zRange = bounds[2]
         
         # Random position within domain bounds (with margin)
-        x_pos = np.random.uniform(x_range[0] + 0.1, x_range[1] - 0.1)
-        y_pos = np.random.uniform(y_range[0] + 0.1, y_range[1] - 0.1)
-        z_pos = np.random.uniform(z_range[0] + 0.1, z_range[1] - 0.1)
+        xPos = np.random.uniform(xRange[0] + 0.1, xRange[1] - 0.1)
+        yPos = np.random.uniform(yRange[0] + 0.1, yRange[1] - 0.1)
+        zPos = np.random.uniform(zRange[0] + 0.1, zRange[1] - 0.1)
         
-        heat_sources.append({
-            'position': (x_pos, y_pos, z_pos),
+        heatSources.append({
+            'position': (xPos, yPos, zPos),
             'amplitude': np.random.uniform(0.5, 2.0),
             'sigma': np.random.uniform(0.03, 0.08)
         })
     
     print("Heat sources:")
-    for i, source in enumerate(heat_sources):
+    for i, source in enumerate(heatSources):
         pos = source['position']
         print(f"  {i+1}: pos=({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}), "
               f"amp={source['amplitude']:.3f}, σ={source['sigma']:.3f}")
     
     # Train model
-    model = train_delta_pinn_3d(args, domain, heat_sources)
+    model = trainDeltaPinn3d(args, domain, heatSources)
     
     print("\n=== Training Complete ===")
     print("Use visualization.py to visualize results")
