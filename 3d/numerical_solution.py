@@ -19,42 +19,42 @@ class HeatSolver3D:
     Supports irregular domains through signed distance functions
     """
     
-    def __init__(self, domain: Domain3D, nx: int = 32, ny: int = 32, nz: int = 32,
+    def __init__(self, domain: Domain3D, nX: int = 32, nY: int = 32, nZ: int = 32,
                  alpha: float = 0.01):
         """
         Initialize 3D heat solver
         
         Args:
             domain: Domain3D object defining geometry
-            nx, ny, nz: Grid resolution in each dimension
+            nX, nY, nZ: Grid resolution in each dimension
             alpha: Thermal diffusivity coefficient
         """
         self.domain = domain
-        self.nx, self.ny, self.nz = nx, ny, nz
+        self.nX, self.nY, self.nZ = nX, nY, nZ
         self.alpha = alpha
         
         # Generate computational grid
-        self._setup_grid()
-        self._setup_operators()
+        self.setupGrid()
+        self.setupOperators()
         
         print(f"Initialized 3D heat solver:")
         print(f"  Domain: {domain.name}")
-        print(f"  Grid: {nx}×{ny}×{nz}")
-        print(f"  Interior points: {self.n_interior}")
+        print(f"  Grid: {nX}×{nY}×{nZ}")
+        print(f"  Interior points: {self.nInterior}")
         print(f"  Thermal diffusivity: {alpha}")
     
-    def _setup_grid(self):
+    def setupGrid(self):
         """Setup computational grid and domain masks"""
         # Generate domain grid
-        grid_data = self.domain.generate_grid(self.nx, self.ny, self.nz)
+        gridData = self.domain.generateGrid(self.nX, self.nY, self.nZ)
         
-        self.x = grid_data['x']
-        self.y = grid_data['y']
-        self.z = grid_data['z']
-        self.X = grid_data['X']
-        self.Y = grid_data['Y']
-        self.Z = grid_data['Z']
-        self.mask = grid_data['mask']  # True for interior points
+        self.x = gridData['x']
+        self.y = gridData['y']
+        self.z = gridData['z']
+        self.X = gridData['X']
+        self.Y = gridData['Y']
+        self.Z = gridData['Z']
+        self.mask = gridData['mask']  # True for interior points
         
         # Grid spacing
         self.dx = self.x[1] - self.x[0]
@@ -62,15 +62,15 @@ class HeatSolver3D:
         self.dz = self.z[1] - self.z[0]
         
         # Create index mapping for interior points
-        self.interior_indices = np.where(self.mask)
-        self.n_interior = len(self.interior_indices[0])
+        self.interiorIndices = np.where(self.mask)
+        self.nInterior = len(self.interiorIndices[0])
         
         # Create mapping from 3D indices to 1D interior point index
-        self.index_map = -np.ones((self.nx, self.ny, self.nz), dtype=int)
-        for idx, (i, j, k) in enumerate(zip(*self.interior_indices)):
-            self.index_map[i, j, k] = idx
+        self.indexMap = -np.ones((self.nX, self.nY, self.nZ), dtype=int)
+        for idx, (i, j, k) in enumerate(zip(*self.interiorIndices)):
+            self.indexMap[i, j, k] = idx
     
-    def _setup_operators(self):
+    def setupOperators(self):
         """Setup finite difference operators"""
         # Coefficients for second derivatives
         self.cx = self.alpha / (self.dx**2)
@@ -78,14 +78,14 @@ class HeatSolver3D:
         self.cz = self.alpha / (self.dz**2)
         
         # Build sparse Laplacian matrix for interior points
-        self._build_laplacian_matrix()
+        self.buildLaplacianMatrix()
     
-    def _build_laplacian_matrix(self):
+    def buildLaplacianMatrix(self):
         """Build sparse matrix for 3D Laplacian with domain masking"""
         
         # Lists for sparse matrix construction
-        row_indices = []
-        col_indices = []
+        rowIndices = []
+        colIndices = []
         data = []
         
         # Stencil offsets for 6-point finite difference
@@ -93,54 +93,54 @@ class HeatSolver3D:
         coeffs = [self.cx, self.cx, self.cy, self.cy, self.cz, self.cz]
         
         # Build matrix row by row
-        for idx, (i, j, k) in enumerate(zip(*self.interior_indices)):
-            diagonal_sum = 0
+        for idx, (i, j, k) in enumerate(zip(*self.interiorIndices)):
+            diagonalSum = 0
             
             # Check each neighbor in 6-point stencil
             for (di, dj, dk), coeff in zip(offsets, coeffs):
                 ni, nj, nk = i + di, j + dj, k + dk
                 
                 # Check bounds
-                if (0 <= ni < self.nx and 0 <= nj < self.ny and 0 <= nk < self.nz):
+                if (0 <= ni < self.nX and 0 <= nj < self.nY and 0 <= nk < self.nZ):
                     if self.mask[ni, nj, nk]:  # Neighbor is interior
-                        neighbor_idx = self.index_map[ni, nj, nk]
-                        row_indices.append(idx)
-                        col_indices.append(neighbor_idx)
+                        neighborIdx = self.indexMap[ni, nj, nk]
+                        rowIndices.append(idx)
+                        colIndices.append(neighborIdx)
                         data.append(coeff)
-                        diagonal_sum -= coeff
+                        diagonalSum -= coeff
                     else:  # Neighbor is boundary (Dirichlet BC: u=0)
-                        diagonal_sum -= coeff
+                        diagonalSum -= coeff
                 else:  # Outside domain bounds
-                    diagonal_sum -= coeff
+                    diagonalSum -= coeff
             
             # Add diagonal entry
-            row_indices.append(idx)
-            col_indices.append(idx)
-            data.append(diagonal_sum)
+            rowIndices.append(idx)
+            colIndices.append(idx)
+            data.append(diagonalSum)
         
         # Create sparse matrix
-        self.laplacian_matrix = sp.csr_matrix(
-            (data, (row_indices, col_indices)),
-            shape=(self.n_interior, self.n_interior)
+        self.laplacianMatrix = sp.csr_matrix(
+            (data, (rowIndices, colIndices)),
+            shape=(self.nInterior, self.nInterior)
         )
         
-        print(f"Built Laplacian matrix: {self.n_interior}×{self.n_interior}, nnz={self.laplacian_matrix.nnz}")
+        print(f"Built Laplacian matrix: {self.nInterior}×{self.nInterior}, nnz={self.laplacianMatrix.nnz}")
     
-    def create_initial_condition(self, heat_sources: List[Dict]) -> np.ndarray:
+    def createInitialCondition(self, heatSources: List[Dict]) -> np.ndarray:
         """
         Create initial temperature distribution from heat sources
         
         Args:
-            heat_sources: List of heat source dictionaries
+            heatSources: List of heat source dictionaries
         
         Returns:
             u0: Initial condition vector for interior points
         """
         # Initialize on full grid
-        u0_grid = np.zeros((self.nx, self.ny, self.nz))
+        u0Grid = np.zeros((self.nX, self.nY, self.nZ))
         
         # Add each heat source
-        for source in heat_sources:
+        for source in heatSources:
             x0, y0, z0 = source['position']
             amplitude = source['amplitude']
             sigma = source.get('sigma', 0.05)
@@ -149,274 +149,277 @@ class HeatSolver3D:
             gaussian = amplitude * np.exp(
                 -((self.X - x0)**2 + (self.Y - y0)**2 + (self.Z - z0)**2) / (2 * sigma**2)
             )
-            u0_grid += gaussian
+            u0Grid += gaussian
         
         # Extract interior points
-        u0_interior = u0_grid[self.interior_indices]
+        u0Interior = u0Grid[self.interiorIndices]
         
-        return u0_interior
+        return u0Interior
     
-    def solve_explicit(self, heat_sources: List[Dict], t_final: float = 1.0, 
-                      n_steps: int = 1000, save_interval: int = 10) -> Dict:
+    def solveExplicit(self, heatSources: List[Dict], tFinal: float = 1.0, 
+                      nSteps: int = 1000, saveInterval: int = 10) -> Dict:
         """
         Solve heat equation using explicit time stepping (Forward Euler)
         
         Args:
-            heat_sources: List of heat source dictionaries
-            t_final: Final simulation time
-            n_steps: Number of time steps
-            save_interval: Save solution every N steps
+            heatSources: List of heat source dictionaries
+            tFinal: Final simulation time
+            nSteps: Number of time steps
+            saveInterval: Save solution every N steps
         
         Returns:
             Dictionary with solution history
         """
-        dt = t_final / n_steps
+        dt = tFinal / nSteps
         
         # Stability check for explicit method
-        stability_limit = 1 / (2 * self.alpha * (1/self.dx**2 + 1/self.dy**2 + 1/self.dz**2))
-        if dt > stability_limit:
-            print(f"Warning: dt={dt:.6f} may exceed stability limit {stability_limit:.6f}")
+        stabilityLimit = 1 / (2 * self.alpha * (1/self.dx**2 + 1/self.dy**2 + 1/self.dz**2))
+        if dt > stabilityLimit:
+            print(f"Warning: dt={dt:.6f} may exceed stability limit {stabilityLimit:.6f}")
             print("Consider using implicit solver or reducing dt")
         
         # Initial condition
-        u = self.create_initial_condition(heat_sources)
+        u = self.createInitialCondition(heatSources)
         
         # Time stepping matrix: I + dt*L
-        time_step_matrix = sp.identity(self.n_interior) + dt * self.laplacian_matrix
+        timeStepMatrix = sp.identity(self.nInterior) + dt * self.laplacianMatrix
         
         # Storage
-        t_save = []
-        u_save = []
-        save_counter = 0
+        tSave = []
+        uSave = []
+        saveCounter = 0
         
         print(f"Starting explicit time integration (dt={dt:.6f})...")
         
-        for step in range(n_steps + 1):
+        for step in range(nSteps + 1):
             t = step * dt
             
             # Save solution
-            if step % save_interval == 0:
-                t_save.append(t)
-                u_save.append(u.copy())
-                save_counter += 1
+            if step % saveInterval == 0:
+                tSave.append(t)
+                uSave.append(u.copy())
+                saveCounter += 1
                 
-                if step % (save_interval * 10) == 0:
-                    print(f"  Step {step}/{n_steps}, t={t:.4f}, max_u={np.max(u):.4f}")
+                if step % (saveInterval * 10) == 0:
+                    print(f"  Step {step}/{nSteps}, t={t:.4f}, max_u={np.max(u):.4f}")
             
             # Time step (except on last iteration)
-            if step < n_steps:
-                u = time_step_matrix @ u
+            if step < nSteps:
+                u = timeStepMatrix @ u
         
-        print(f"Explicit solve complete. Saved {len(t_save)} time points.")
+        print(f"Explicit solve complete. Saved {len(tSave)} time points.")
         
         return {
-            'times': np.array(t_save),
-            'solutions': u_save,
+            'times': np.array(tSave),
+            'solutions': uSave,
             'method': 'explicit',
             'dt': dt,
-            'grid_shape': (self.nx, self.ny, self.nz),
-            'n_interior': self.n_interior
+            'grid_shape': (self.nX, self.nY, self.nZ),
+            'n_interior': self.nInterior
         }
     
-    def solve_implicit(self, heat_sources: List[Dict], t_final: float = 1.0,
-                      n_steps: int = 100, save_interval: int = 1) -> Dict:
+    def solveImplicit(self, heatSources: List[Dict], tFinal: float = 1.0,
+                      nSteps: int = 100, saveInterval: int = 1) -> Dict:
         """
         Solve heat equation using implicit time stepping (Backward Euler)
         
         Args:
-            heat_sources: List of heat source dictionaries  
-            t_final: Final simulation time
-            n_steps: Number of time steps
-            save_interval: Save solution every N steps
+            heatSources: List of heat source dictionaries  
+            tFinal: Final simulation time
+            nSteps: Number of time steps
+            saveInterval: Save solution every N steps
         
         Returns:
             Dictionary with solution history
         """
-        dt = t_final / n_steps
+        dt = tFinal / nSteps
         
         # Initial condition
-        u = self.create_initial_condition(heat_sources)
+        u = self.createInitialCondition(heatSources)
         
         # Implicit time stepping matrix: I - dt*L
-        implicit_matrix = sp.identity(self.n_interior) - dt * self.laplacian_matrix
+        implicitMatrix = sp.identity(self.nInterior) - dt * self.laplacianMatrix
         
         # Pre-factorize for efficiency (if possible)
         try:
             from scipy.sparse.linalg import factorized
-            solve_factorized = factorized(implicit_matrix.tocsc())
-            use_factorized = True
+            solveFactorized = factorized(implicitMatrix.tocsc())
+            useFactorized = True
         except:
-            use_factorized = False
+            useFactorized = False
         
         # Storage
-        t_save = []
-        u_save = []
+        tSave = []
+        uSave = []
         
         print(f"Starting implicit time integration (dt={dt:.6f})...")
         
-        for step in range(n_steps + 1):
+        for step in range(nSteps + 1):
             t = step * dt
             
             # Save solution
-            if step % save_interval == 0:
-                t_save.append(t)
-                u_save.append(u.copy())
+            if step % saveInterval == 0:
+                tSave.append(t)
+                uSave.append(u.copy())
                 
-                if step % (save_interval * 10) == 0:
-                    print(f"  Step {step}/{n_steps}, t={t:.4f}, max_u={np.max(u):.4f}")
+                if step % (saveInterval * 10) == 0:
+                    print(f"  Step {step}/{nSteps}, t={t:.4f}, max_u={np.max(u):.4f}")
             
             # Time step (except on last iteration)  
-            if step < n_steps:
-                if use_factorized:
-                    u = solve_factorized(u)
+            if step < nSteps:
+                if useFactorized:
+                    u = solveFactorized(u)
                 else:
-                    u = spsolve(implicit_matrix, u)
+                    u = spsolve(implicitMatrix, u)
         
-        print(f"Implicit solve complete. Saved {len(t_save)} time points.")
+        print(f"Implicit solve complete. Saved {len(tSave)} time points.")
         
         return {
-            'times': np.array(t_save),
-            'solutions': u_save,
+            'times': np.array(tSave),
+            'solutions': uSave,
             'method': 'implicit',
             'dt': dt,
-            'grid_shape': (self.nx, self.ny, self.nz),
-            'n_interior': self.n_interior
+            'grid_shape': (self.nX, self.nY, self.nZ),
+            'n_interior': self.nInterior
         }
     
-    def interior_to_grid(self, u_interior: np.ndarray) -> np.ndarray:
+    def interiorToGrid(self, uInterior: np.ndarray) -> np.ndarray:
         """Convert interior point vector to full 3D grid"""
-        u_grid = np.full((self.nx, self.ny, self.nz), np.nan)
-        u_grid[self.interior_indices] = u_interior
-        return u_grid
+        uGrid = np.full((self.nX, self.nY, self.nZ), np.nan)
+        uGrid[self.interiorIndices] = uInterior
+        return uGrid
     
-    def save_solution(self, solution_data: Dict, filename: str):
+    def saveSolution(self, solutionData: Dict, filename: str):
         """Save solution data to file"""
         # Add grid information
-        solution_data['grid_x'] = self.x
-        solution_data['grid_y'] = self.y
-        solution_data['grid_z'] = self.z
-        solution_data['mask'] = self.mask
-        solution_data['interior_indices'] = self.interior_indices
-        solution_data['domain_name'] = self.domain.name
+        solutionData['grid_x'] = self.x
+        solutionData['grid_y'] = self.y
+        solutionData['grid_z'] = self.z
+        solutionData['X'] = self.X
+        solutionData['Y'] = self.Y
+        solutionData['Z'] = self.Z
+        solutionData['mask'] = self.mask
+        solutionData['interior_indices'] = self.interiorIndices
+        solutionData['domain_name'] = self.domain.name
         
         with open(filename, 'wb') as f:
-            pickle.dump(solution_data, f)
+            pickle.dump(solutionData, f)
         
         print(f"Solution saved to {filename}")
     
-    def load_solution(self, filename: str) -> Dict:
+    def loadSolution(self, filename: str) -> Dict:
         """Load solution data from file"""
         with open(filename, 'rb') as f:
-            solution_data = pickle.load(f)
+            solutionData = pickle.load(f)
         
         print(f"Solution loaded from {filename}")
-        return solution_data
+        return solutionData
 
-def solve_reference_problem(domain_type: str = 'sphere', heat_sources: Optional[List[Dict]] = None,
-                          nx: int = 48, alpha: float = 0.01, t_final: float = 1.0,
-                          method: str = 'implicit', save_dir: str = './numerical_solutions') -> Dict:
+def solveReferenceProblem(domainType: str = 'sphere', heatSources: Optional[List[Dict]] = None,
+                          nX: int = 48, alpha: float = 0.01, tFinal: float = 1.0,
+                          method: str = 'implicit', saveDir: str = './numerical_solutions') -> Dict:
     """
     Solve reference heat diffusion problem for comparison with PINN
     
     Args:
-        domain_type: Type of domain ('sphere', 'cube', 'lshape', etc.)
-        heat_sources: List of heat source dictionaries
-        nx: Grid resolution (nx×nx×nx)
+        domainType: Type of domain ('sphere', 'cube', 'lshape', etc.)
+        heatSources: List of heat source dictionaries
+        nX: Grid resolution (nX×nX×nX)
         alpha: Thermal diffusivity
-        t_final: Final simulation time
+        tFinal: Final simulation time
         method: 'explicit' or 'implicit'
-        save_dir: Directory to save results
+        saveDir: Directory to save results
     
     Returns:
         Solution dictionary
     """
     # Create domain
-    domain = DomainFactory.create_domain(domain_type)
+    domain = DomainFactory.createDomain(domainType)
     
     # Default heat sources if not provided
-    if heat_sources is None:
+    if heatSources is None:
         np.random.seed(1337)
         bounds = domain.bounds()
         
-        heat_sources = []
+        heatSources = []
         for i in range(2):
-            x_range = bounds[0]
-            y_range = bounds[1]
-            z_range = bounds[2]
+            xRange = bounds[0]
+            yRange = bounds[1]
+            zRange = bounds[2]
             
-            x_pos = np.random.uniform(x_range[0] + 0.1, x_range[1] - 0.1)
-            y_pos = np.random.uniform(y_range[0] + 0.1, y_range[1] - 0.1)
-            z_pos = np.random.uniform(z_range[0] + 0.1, z_range[1] - 0.1)
+            xPos = np.random.uniform(xRange[0] + 0.1, xRange[1] - 0.1)
+            yPos = np.random.uniform(yRange[0] + 0.1, yRange[1] - 0.1)
+            zPos = np.random.uniform(zRange[0] + 0.1, zRange[1] - 0.1)
             
-            heat_sources.append({
-                'position': (x_pos, y_pos, z_pos),
+            heatSources.append({
+                'position': (xPos, yPos, zPos),
                 'amplitude': np.random.uniform(0.5, 2.0),
                 'sigma': np.random.uniform(0.03, 0.08)
             })
     
     print(f"\n=== Numerical Reference Solution ===")
-    print(f"Domain: {domain_type}")
-    print(f"Grid: {nx}×{nx}×{nx}")
+    print(f"Domain: {domainType}")
+    print(f"Grid: {nX}×{nX}×{nX}")
     print(f"Method: {method}")
-    print(f"Heat sources: {len(heat_sources)}")
+    print(f"Heat sources: {len(heatSources)}")
     
     # Initialize solver
-    solver = HeatSolver3D(domain, nx, nx, nx, alpha)
+    solver = HeatSolver3D(domain, nX, nX, nX, alpha)
     
     # Solve
     if method == 'explicit':
-        n_steps = int(t_final / (0.1 / (2 * alpha * (nx**2))))  # Conservative time step
-        solution = solver.solve_explicit(heat_sources, t_final, n_steps, save_interval=max(1, n_steps//100))
+        nSteps = int(tFinal / (0.1 / (2 * alpha * (nX**2))))  # Conservative time step
+        solution = solver.solveExplicit(heatSources, tFinal, nSteps, saveInterval=max(1, nSteps//100))
     else:
-        solution = solver.solve_implicit(heat_sources, t_final, n_steps=100, save_interval=1)
+        solution = solver.solveImplicit(heatSources, tFinal, nSteps=100, saveInterval=1)
     
     # Save results
-    os.makedirs(save_dir, exist_ok=True)
-    filename = os.path.join(save_dir, f"numerical_{domain_type}_{method}.pkl")
-    solver.save_solution(solution, filename)
+    os.makedirs(saveDir, exist_ok=True)
+    filename = os.path.join(saveDir, f"numerical_{domainType}_{method}.pkl")
+    solver.saveSolution(solution, filename)
     
     return solution
 
-def compare_methods_benchmark():
+def compareMethodsBenchmark():
     """Benchmark different solution methods"""
     print("\n=== Method Comparison Benchmark ===")
     
-    domain = DomainFactory.create_domain('sphere')
+    domain = DomainFactory.createDomain('sphere')
     
     # Test heat sources
-    heat_sources = [{
+    heatSources = [{
         'position': (0.5, 0.5, 0.5),
         'amplitude': 1.0,
         'sigma': 0.05
     }]
     
     # Test different grid resolutions
-    for nx in [16, 24, 32]:
-        print(f"\n--- Grid Resolution {nx}×{nx}×{nx} ---")
+    for nX in [16, 24, 32]:
+        print(f"\n--- Grid Resolution {nX}×{nX}×{nX} ---")
         
-        solver = HeatSolver3D(domain, nx, nx, nx)
+        solver = HeatSolver3D(domain, nX, nX, nX)
         
         # Implicit method
         import time
         start = time.time()
-        sol_implicit = solver.solve_implicit(heat_sources, t_final=0.5, n_steps=50, save_interval=10)
-        time_implicit = time.time() - start
+        solImplicit = solver.solveImplicit(heatSources, tFinal=0.5, nSteps=50, saveInterval=10)
+        timeImplicit = time.time() - start
         
-        print(f"Implicit: {time_implicit:.2f}s, final_max={np.max(sol_implicit['solutions'][-1]):.4f}")
+        print(f"Implicit: {timeImplicit:.2f}s, final_max={np.max(solImplicit['solutions'][-1]):.4f}")
         
         # Explicit method (if stable)
-        stability_dt = 1 / (2 * 0.01 * (nx**2 + nx**2 + nx**2))
-        n_explicit = int(0.5 / stability_dt) + 1
+        stabilityDt = 1 / (2 * 0.01 * (nX**2 + nX**2 + nX**2))
+        nExplicit = int(0.5 / stabilityDt) + 1
         
-        if n_explicit < 10000:  # Reasonable number of steps
+        if nExplicit < 10000:  # Reasonable number of steps
             start = time.time()
-            sol_explicit = solver.solve_explicit(heat_sources, t_final=0.5, 
-                                               n_steps=n_explicit, save_interval=max(1, n_explicit//10))
-            time_explicit = time.time() - start
+            solExplicit = solver.solveExplicit(heatSources, tFinal=0.5, 
+                                               nSteps=nExplicit, saveInterval=max(1, nExplicit//10))
+            timeExplicit = time.time() - start
             
-            print(f"Explicit: {time_explicit:.2f}s, final_max={np.max(sol_explicit['solutions'][-1]):.4f}")
+            print(f"Explicit: {timeExplicit:.2f}s, final_max={np.max(solExplicit['solutions'][-1]):.4f}")
         else:
-            print(f"Explicit: Skipped (would need {n_explicit} steps)")
+            print(f"Explicit: Skipped (would need {nExplicit} steps)")
 
 if __name__ == '__main__':
     import argparse
@@ -436,15 +439,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     if args.benchmark:
-        compare_methods_benchmark()
+        compareMethodsBenchmark()
     else:
-        solution = solve_reference_problem(
-            domain_type=args.domain,
-            nx=args.nx,
+        solution = solveReferenceProblem(
+            domainType=args.domain,
+            nX=args.nx,
             alpha=args.alpha,
-            t_final=args.t_final,
+            tFinal=args.t_final,
             method=args.method,
-            save_dir=args.save_dir
+            saveDir=args.save_dir
         )
         
         print(f"\nSolution computed with {len(solution['times'])} time points")
