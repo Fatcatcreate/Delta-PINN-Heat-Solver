@@ -225,22 +225,42 @@ class VoxelDomain(Domain3D):
 
     def __init__(self, npy_path: str, name: str = "VoxelDomain"):
         super().__init__(name)
-        data = np.load(npy_path, allow_pickle=True).item()
-        self.sdf_data = data["sdf"]
-        self._bounds = data["bounds"]
-        self.pitch = data["pitch"]
-        
-        # Create grid coordinates for interpolation
-        self.x_coords = np.arange(self._bounds[0, 0], self._bounds[1, 0] + self.pitch, self.pitch)
-        self.y_coords = np.arange(self._bounds[0, 1], self._bounds[1, 1] + self.pitch, self.pitch)
-        self.z_coords = np.arange(self._bounds[0, 2], self._bounds[1, 2] + self.pitch, self.pitch)
+        print(f"Loading VoxelDomain from: {npy_path}", flush=True)
+        print("Attempting to load .npy file...", flush=True)
+        try:
+            data = np.load(npy_path, allow_pickle=True).item()
+            print(".npy file loaded successfully.", flush=True)
+            self.sdfData = data["sdf"]
+            self._bounds = data["bounds"]
+            self.pitch = data["pitch"]
+            
+            print(f"  - SDF shape: {self.sdfData.shape}", flush=True)
+            print(f"  - Bounds: {self._bounds}", flush=True)
+            print(f"  - Pitch: {self.pitch}", flush=True)
+            
+            # Check if the SDF is inverted
+            center_voxel_index = tuple(s // 2 for s in self.sdfData.shape)
+            if self.sdfData[center_voxel_index] > 0:
+                print("SDF in .npy file seems to be inverted, flipping the sign.", flush=True)
+                self.sdfData = -self.sdfData
+
+            # Create grid coordinates for interpolation
+            self.x_coords = np.linspace(self._bounds[0, 0], self._bounds[1, 0], self.sdfData.shape[0])
+            self.y_coords = np.linspace(self._bounds[0, 1], self._bounds[1, 1], self.sdfData.shape[1])
+            self.z_coords = np.linspace(self._bounds[0, 2], self._bounds[1, 2], self.sdfData.shape[2])
+            
+            print("VoxelDomain loaded successfully.", flush=True)
+
+        except Exception as e:
+            print(f"Error loading VoxelDomain from {npy_path}: {e}", flush=True)
+            raise
 
     def sdf(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
         """Interpolate the SDF value from the voxel grid."""
         points = np.stack([x, y, z], axis=-1)
         
         # Interpolate
-        return interpn((self.x_coords, self.y_coords, self.z_coords), self.sdf_data, points, method='linear', bounds_error=False, fill_value=np.max(self.sdf_data))
+        return interpn((self.x_coords, self.y_coords, self.z_coords), self.sdfData, points, method='linear', bounds_error=False, fill_value=np.max(self.sdfData))
 
     def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
         return ((self._bounds[0, 0], self._bounds[1, 0]),

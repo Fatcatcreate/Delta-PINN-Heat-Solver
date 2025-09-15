@@ -14,7 +14,7 @@ import time
 import csv
 from tqdm import tqdm
 from typing import List, Tuple, Dict, Optional
-from domain_shapes import Domain3D, DomainFactory, generateInteriorPoints, generateBoundaryPoints
+from domainShapes import Domain3D, DomainFactory, generateInteriorPoints, generateBoundaryPoints
 
 def setSeed(seed=1337):
     torch.manual_seed(seed)
@@ -371,7 +371,7 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
     domain_filename = os.path.basename(domain.name)
     domain_name_sanitized = os.path.splitext(domain_filename)[0]
 
-    modelPath = os.path.join(args.saveDir, f"delta_pinn_3d_{domain_name_sanitized.lower()}.pt")
+    modelPath = os.path.join(args.saveDir, f"deltaPinn3d_{domain_name_sanitized.lower()}.pt")
     torch.save({
         'model_state_dict': model.state_dict(),
         'history': history,
@@ -538,7 +538,7 @@ def main():
     
     print("\n=== Training Complete ===")
     print("Use visualization.py to visualize results")
-    print("Use interactive_demo.py for interactive exploration")
+    print("Use interactiveDemo.py for interactive exploration")
 
 if __name__ == '__main__':
     main()

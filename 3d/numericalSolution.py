@@ -11,7 +11,7 @@ from scipy.ndimage import gaussian_filter
 import os
 import pickle
 from typing import List, Dict, Tuple, Optional
-from domain_shapes import Domain3D, DomainFactory
+from domainShapes import Domain3D, DomainFactory
 
 class HeatSolver3D:
     """

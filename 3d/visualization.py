@@ -29,9 +29,9 @@ except ImportError:
     PLOTLY_AVAILABLE = False
     print("Plotly not available. Using matplotlib only.")
 
-from domain_shapes import Domain3D, DomainFactory
-from delta_pinn_3d import DeltaPINN3D, loadTrainedModel, predictSolution3d
-from numerical_solution import HeatSolver3D
+from domainShapes import Domain3D, DomainFactory
+from deltaPinn3d import DeltaPINN3D, loadTrainedModel, predictSolution3d
+from numericalSolution import HeatSolver3D
 
 try:
     from skimage import measure
@@ -349,28 +349,32 @@ class HeatVisualization3D:
         """Plot temperature heatmap on the 3D domain surface with a time slider."""
         
         if not PLOTLY_AVAILABLE or not SKIMAGE_AVAILABLE:
-            print("Plotly or Scikit-image not available for surface heatmap.")
+            print("Plotly or Scikit-image not available for surface heatmap.", flush=True)
             return None, None, None, None
 
+        print("Generating surface heatmap...", flush=True)
         # Generate a high-resolution grid for surface extraction
         gridData = domain.generateGrid(256, 256, 256)
         XDom, YDom, ZDom = gridData['X'], gridData['Y'], gridData['Z']
         sdfVals = gridData['sdf']
+        print(f"  - SDF values range: {np.min(sdfVals)} to {np.max(sdfVals)}", flush=True)
 
         # Use marching cubes to find the surface mesh
         try:
+            print("  - Running marching cubes...", flush=True)
             verts, faces, _, _ = measure.marching_cubes(sdfVals, level=0)
+            print(f"  - Marching cubes found {len(verts)} vertices and {len(faces)} faces.", flush=True)
             # Scale vertices to the domain bounds
             bounds = domain.bounds()
             verts[:, 0] = verts[:, 0] * (bounds[0][1] - bounds[0][0]) / (256 - 1) + bounds[0][0]
             verts[:, 1] = verts[:, 1] * (bounds[1][1] - bounds[1][0]) / (256 - 1) + bounds[1][0]
             verts[:, 2] = verts[:, 2] * (bounds[2][1] - bounds[2][0]) / (256 - 1) + bounds[2][0]
         except (ValueError, RuntimeError) as e:
-            print(f"Marching cubes failed: {e}. Cannot generate surface plot.")
+            print(f"Marching cubes failed: {e}. Cannot generate surface plot.", flush=True)
             return None, None, None, None
 
         if len(verts) == 0:
-            print("Marching cubes did not find a surface.")
+            print("Marching cubes did not find a surface.", flush=True)
             return None, None, None, None
 
         # Create time steps

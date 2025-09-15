@@ -26,13 +26,13 @@ except ImportError:
     TORCH_AVAILABLE = False
     print("PyTorch not available. PINN functionality disabled.")
 
-from domain_shapes import Domain3D, DomainFactory
+from domainShapes import Domain3D, DomainFactory
 from visualization import HeatVisualization3D
-from convert_obj import convertObjToSdf
+from convertObj import convertObjToSdf
 
 if TORCH_AVAILABLE:
     from delta_pinn_3d import DeltaPINN3D, trainDeltaPinn3d, predictSolution3d, ResidualBlock
-    from numerical_solution import HeatSolver3D, solveReferenceProblem
+    from numericalSolution import HeatSolver3D, solveReferenceProblem
 
 class InteractiveHeatDemo:
     """Interactive 3D heat diffusion demonstration"""
@@ -148,7 +148,7 @@ class InteractiveHeatDemo:
         
         ttk.Label(domainFrame, text="Voxelization Resolution:").pack(anchor='w', pady=(5, 0))
         self.resolutionVar = tk.IntVar(value=128)
-        resolutionScale = ttk.Scale(domainFrame, from_=32, to=512, variable=self.resolutionVar,
+        resolutionScale = ttk.Scale(domainFrame, from_=8, to=512, variable=self.resolutionVar,
                                orient='horizontal')
         resolutionScale.pack(fill='x', pady=(0, 5))
         self.resolutionLabel = ttk.Label(domainFrame, text=f"Resolution = {self.resolutionVar.get()}")
@@ -539,28 +539,24 @@ class InteractiveHeatDemo:
         """Update the main visualization"""
         self.fig.clear()
         
+        ax = self.fig.add_subplot(111)
+        
+        # Plot domain boundary (2D projection)
+        bounds = self.domain.bounds()
+        xTest = np.linspace(bounds[0][0], bounds[0][1], 100)
+        yTest = np.linspace(bounds[1][0], bounds[1][1], 100)
+        XTest, YTest = np.meshgrid(xTest, yTest)
+        ZTest = np.full_like(XTest, (bounds[2][0] + bounds[2][1]) / 2)
+        
+        insideMask = self.domain.isInside(XTest, YTest, ZTest)
+        ax.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colors='black', linewidths=2)
+        ax.contourf(XTest, YTest, insideMask.astype(float), levels=[0.5, 1.5], colors=['lightblue'], alpha=0.3)
+        
         if not self.heatSources:
-            # Show empty domain
-            ax = self.fig.add_subplot(111)
-            ax.text(0.5, 0.5, 'Add heat sources to begin simulation\nDouble-click to add source', 
-                   ha='center', va='center', transform=ax.transAxes, fontsize=12)
-            ax.set_title(f"Domain: {self.domainType}")
-            
+            # Show empty domain with instructions
+            ax.set_title(f"Domain: {self.getSanitizedDomainName()} (Double-click to add heat source)")
         else:
             # Show domain with heat sources
-            ax = self.fig.add_subplot(111)
-            
-            # Plot domain boundary (2D projection)
-            bounds = self.domain.bounds()
-            xTest = np.linspace(bounds[0][0], bounds[0][1], 100)
-            yTest = np.linspace(bounds[1][0], bounds[1][1], 100)
-            XTest, YTest = np.meshgrid(xTest, yTest)
-            ZTest = np.full_like(XTest, (bounds[2][0] + bounds[2][1]) / 2)
-            
-            insideMask = self.domain.isInside(XTest, YTest, ZTest)
-            ax.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colors='black', linewidths=2)
-            ax.contourf(XTest, YTest, insideMask.astype(float), levels=[0.5, 1.5], colors=['lightblue'], alpha=0.3)
-            
             # Plot heat sources
             colors = ['red', 'orange', 'yellow', 'purple', 'green', 'cyan', 'magenta']
             for i, source in enumerate(self.heatSources):
@@ -577,12 +573,13 @@ class InteractiveHeatDemo:
                                       color=colors[i % len(colors)], alpha=0.5, linestyle='--')
                 ax.add_patch(circle)
             
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y')
-            ax.set_title(f'Heat Sources - {self.domainType}')
+            ax.set_title(f'Heat Sources - {self.getSanitizedDomainName()}')
             ax.legend()
-            ax.set_aspect('equal')
-            ax.grid(True, alpha=0.3)
+
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_aspect('equal')
+        ax.grid(True, alpha=0.3)
         
         self.canvas.draw()
     
@@ -1125,7 +1122,7 @@ class InteractiveHeatDemo:
         try:
             self.logMessage(f"Saving model to {filename}...")
             # We need to create an args dict to save with the model
-            from delta_pinn_3d import ResidualBlock # Import for isinstance check
+            from deltaPinn3d import ResidualBlock # Import for isinstance check
             argsToSave = {
                 'hidden_size': self.pinnModel.hidden_layers[0].in_features if not self.pinnModel.use_fourier else self.pinnModel.fourier_embed.embed_dim,
                 'num_layers': len([l for l in self.pinnModel.hidden_layers if isinstance(l, (torch.nn.Linear, ResidualBlock))]),
@@ -1278,13 +1275,15 @@ class InteractiveHeatDemo:
     def run(self):
         """Run the interactive demo"""
         try:
+            print("Starting mainloop...", flush=True)
             self.root.mainloop()
+            print("Mainloop finished.", flush=True)
         except KeyboardInterrupt:
-            print("\nInteractive demo interrupted by user.")
+            print("\nInteractive demo interrupted by user.", flush=True)
         except Exception as e:
-            print(f"Demo error: {e}")
+            print(f"Demo error: {e}", flush=True)
         finally:
-            print("Interactive demo finished.")
+            print("Interactive demo finished.", flush=True)
 
 
 def main():
