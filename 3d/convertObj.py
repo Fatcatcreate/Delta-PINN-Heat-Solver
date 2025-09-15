@@ -29,24 +29,24 @@ def convertObjToSdf(obj_file_path, output_npy_path, resolution=64):
     max_dim = np.max(mesh.extents)
     pitch = max_dim / resolution
     
-    print(f"Voxelizing mesh with a pitch of {pitch} (resolution: {resolution})...")
+    print(f"Voxelising mesh with a pitch of {pitch} (resolution: {resolution})...")
     bounds = mesh.bounds
-    voxelized_mesh = mesh.voxelized(pitch=pitch)
+    voxelised_mesh = mesh.voxelised(pitch=pitch)
     
     print("Converting voxel grid to a signed distance function...")
-    shape = voxelized_mesh.shape
+    shape = voxelised_mesh.shape
     x, y, z = np.indices(shape)
     indices = np.stack((x.ravel(), y.ravel(), z.ravel()), axis=1)
-    transform = voxelized_mesh.transform
+    transform = voxelised_mesh.transform
     points = trimesh.transform_points(indices, transform)
     sdf = trimesh.proximity.signed_distance(mesh, points)
     
     # Reshape the sdf to the voxel grid shape
     sdf = sdf.reshape(shape)
 
-    # Check if the SDF is inverted by checking the center of the voxel grid
-    center_voxel_index = tuple(s // 2 for s in shape)
-    if sdf[center_voxel_index] > 0:
+    # Check if the SDF is inverted by checking the centre of the voxel grid
+    centre_voxel_index = tuple(s // 2 for s in shape)
+    if sdf[centre_voxel_index] > 0:
         print("SDF seems to be inverted, flipping the sign.")
         sdf = -sdf
 

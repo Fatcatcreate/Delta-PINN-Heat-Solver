@@ -22,7 +22,7 @@ class HeatSolver3D:
     def __init__(self, domain: Domain3D, nX: int = 32, nY: int = 32, nZ: int = 32,
                  alpha: float = 0.01):
         """
-        Initialize 3D heat solver
+        Initialise 3D heat solver
         
         Args:
             domain: Domain3D object defining geometry
@@ -37,7 +37,7 @@ class HeatSolver3D:
         self.setupGrid()
         self.setupOperators()
         
-        print(f"Initialized 3D heat solver:")
+        print(f"Initialised 3D heat solver:")
         print(f"  Domain: {domain.name}")
         print(f"  Grid: {nX}×{nY}×{nZ}")
         print(f"  Interior points: {self.nInterior}")
@@ -136,7 +136,7 @@ class HeatSolver3D:
         Returns:
             u0: Initial condition vector for interior points
         """
-        # Initialize on full grid
+        # Initialise on full grid
         u0Grid = np.zeros((self.nX, self.nY, self.nZ))
         
         # Add each heat source
@@ -240,13 +240,13 @@ class HeatSolver3D:
         # Implicit time stepping matrix: I - dt*L
         implicitMatrix = sp.identity(self.nInterior) - dt * self.laplacianMatrix
         
-        # Pre-factorize for efficiency (if possible)
+        # Pre-factorise for efficiency (if possible)
         try:
             from scipy.sparse.linalg import factorized
-            solveFactorized = factorized(implicitMatrix.tocsc())
-            useFactorized = True
+            solveFactorised = factorized(implicitMatrix.tocsc())
+            useFactorised = True
         except:
-            useFactorized = False
+            useFactorised = False
         
         # Storage
         tSave = []
@@ -267,8 +267,8 @@ class HeatSolver3D:
             
             # Time step (except on last iteration)  
             if step < nSteps:
-                if useFactorized:
-                    u = solveFactorized(u)
+                if useFactorised:
+                    u = solveFactorised(u)
                 else:
                     u = spsolve(implicitMatrix, u)
         
@@ -363,7 +363,7 @@ def solveReferenceProblem(domainType: str = 'sphere', heatSources: Optional[List
     print(f"Method: {method}")
     print(f"Heat sources: {len(heatSources)}")
     
-    # Initialize solver
+    # Initialise solver
     solver = HeatSolver3D(domain, nX, nX, nX, alpha)
     
     # Solve

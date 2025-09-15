@@ -82,23 +82,23 @@ class UnitCube(Domain3D):
 class Sphere(Domain3D):
     """Spherical domain"""
     
-    def __init__(self, center: Tuple[float, float, float] = (0.5, 0.5, 0.5), 
+    def __init__(self, centre: Tuple[float, float, float] = (0.5, 0.5, 0.5), 
                  radius: float = 0.4):
         super().__init__("Sphere")
-        self.center = np.array(center)
+        self.centre = np.array(centre)
         self.radius = radius
     
     def sdf(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
         points = np.stack([x, y, z], axis=-1)
-        distances = np.linalg.norm(points - self.center, axis=-1)
+        distances = np.linalg.norm(points - self.centre, axis=-1)
         return distances - self.radius
     
     def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
         margin = 0.1
         return (
-            (self.center[0] - self.radius - margin, self.center[0] + self.radius + margin),
-            (self.center[1] - self.radius - margin, self.center[1] + self.radius + margin),
-            (self.center[2] - self.radius - margin, self.center[2] + self.radius + margin)
+            (self.centre[0] - self.radius - margin, self.centre[0] + self.radius + margin),
+            (self.centre[1] - self.radius - margin, self.centre[1] + self.radius + margin),
+            (self.centre[2] - self.radius - margin, self.centre[2] + self.radius + margin)
         )
 
 class LShapedPrism(Domain3D):
@@ -147,17 +147,17 @@ class TorusSection(Domain3D):
     """Torus section for advanced geometry"""
     
     def __init__(self, R: float = 0.3, r: float = 0.15, 
-                 center: Tuple[float, float, float] = (0.5, 0.5, 0.5)):
+                 centre: Tuple[float, float, float] = (0.5, 0.5, 0.5)):
         super().__init__("TorusSection")
         self.R = R  # Major radius
         self.r = r  # Minor radius
-        self.center = np.array(center)
+        self.centre = np.array(centre)
     
     def sdf(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
-        # Translate to torus center
-        px = x - self.center[0]
-        py = y - self.center[1] 
-        pz = z - self.center[2]
+        # Translate to torus centre
+        px = x - self.centre[0]
+        py = y - self.centre[1] 
+        pz = z - self.centre[2]
         
         # Torus SDF
         q = np.sqrt(px**2 + py**2) - self.R
@@ -166,21 +166,21 @@ class TorusSection(Domain3D):
     def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
         totalRadius = self.R + self.r + 0.1
         return (
-            (self.center[0] - totalRadius, self.center[0] + totalRadius),
-            (self.center[1] - totalRadius, self.center[1] + totalRadius), 
-            (self.center[2] - self.r - 0.1, self.center[2] + self.r + 0.1)
+            (self.centre[0] - totalRadius, self.centre[0] + totalRadius),
+            (self.centre[1] - totalRadius, self.centre[1] + totalRadius), 
+            (self.centre[2] - self.r - 0.1, self.centre[2] + self.r + 0.1)
         )
 
 class CylinderWithHoles(Domain3D):
     """Cylinder with cylindrical holes"""
     
     def __init__(self, radius: float = 0.4, height: float = 0.8,
-                 center: Tuple[float, float, float] = (0.5, 0.5, 0.5),
+                 centre: Tuple[float, float, float] = (0.5, 0.5, 0.5),
                  holePositions: Optional[list] = None, holeRadius: float = 0.1):
         super().__init__("CylinderWithHoles")
         self.radius = radius
         self.height = height
-        self.center = np.array(center)
+        self.centre = np.array(centre)
         self.holeRadius = holeRadius
         
         if holePositions is None:
@@ -189,10 +189,10 @@ class CylinderWithHoles(Domain3D):
             self.holePositions = holePositions
     
     def sdf(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
-        # Translate to center
-        px = x - self.center[0]
-        py = y - self.center[1]
-        pz = z - self.center[2]
+        # Translate to centre
+        px = x - self.centre[0]
+        py = y - self.centre[1]
+        pz = z - self.centre[2]
         
         # Main cylinder SDF
         radialDist = np.sqrt(px**2 + py**2) - self.radius
@@ -215,13 +215,13 @@ class CylinderWithHoles(Domain3D):
     def bounds(self) -> Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]:
         margin = 0.1
         return (
-            (self.center[0] - self.radius - margin, self.center[0] + self.radius + margin),
-            (self.center[1] - self.radius - margin, self.center[1] + self.radius + margin),
-            (self.center[2] - self.height/2 - margin, self.center[2] + self.height/2 + margin)
+            (self.centre[0] - self.radius - margin, self.centre[0] + self.radius + margin),
+            (self.centre[1] - self.radius - margin, self.centre[1] + self.radius + margin),
+            (self.centre[2] - self.height/2 - margin, self.centre[2] + self.height/2 + margin)
         )
 
 class VoxelDomain(Domain3D):
-    """Domain defined by a voxelized signed distance function from a .npy file."""
+    """Domain defined by a voxelised signed distance function from a .npy file."""
 
     def __init__(self, npy_path: str, name: str = "VoxelDomain"):
         super().__init__(name)
@@ -239,8 +239,8 @@ class VoxelDomain(Domain3D):
             print(f"  - Pitch: {self.pitch}", flush=True)
             
             # Check if the SDF is inverted
-            center_voxel_index = tuple(s // 2 for s in self.sdfData.shape)
-            if self.sdfData[center_voxel_index] > 0:
+            centre_voxel_index = tuple(s // 2 for s in self.sdfData.shape)
+            if self.sdfData[centre_voxel_index] > 0:
                 print("SDF in .npy file seems to be inverted, flipping the sign.", flush=True)
                 self.sdfData = -self.sdfData
 
