@@ -537,7 +537,7 @@ def main():
     model = trainDeltaPinn3d(args, domain, heatSources)
     
     print("\n=== Training Complete ===")
-    print("Use visualization.py to visualize results")
+    print("Use visualisation.py to visualise results")
     print("Use interactiveDemo.py for interactive exploration")
 
 if __name__ == '__main__':

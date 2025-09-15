@@ -27,11 +27,11 @@ except ImportError:
     print("PyTorch not available. PINN functionality disabled.")
 
 from domainShapes import Domain3D, DomainFactory
-from visualization import HeatVisualization3D
+from visualization import HeatVisualisation3D
 from convertObj import convertObjToSdf
 
 if TORCH_AVAILABLE:
-    from delta_pinn_3d import DeltaPINN3D, trainDeltaPinn3d, predictSolution3d, ResidualBlock
+    from deltaPinn3d import DeltaPINN3D, trainDeltaPinn3d, predictSolution3d, ResidualBlock
     from numericalSolution import HeatSolver3D, solveReferenceProblem
 
 class InteractiveHeatDemo:
@@ -53,7 +53,7 @@ class InteractiveHeatDemo:
         self.currentPinnSolution = None
         
         # Visualization
-        self.viz = HeatVisualization3D('./demo_output')
+        self.viz = HeatVisualisation3D('./demo_output')
         
         # Threading
         self.taskQueue = queue.Queue()
@@ -1067,7 +1067,7 @@ class InteractiveHeatDemo:
         try:
             self.logMessage(f"Loading model from {filename}...")
             # We need to import the load function
-            from delta_pinn_3d import loadTrainedModel
+            from deltaPinn3d import loadTrainedModel
             model, checkpoint = loadTrainedModel(filename, device='cpu')
 
             self.pinnModel = model
@@ -1323,7 +1323,7 @@ def main():
     print("- Real-time PINN vs Numerical comparison")
     print("- 3D visualization and animation")
     print("- Export capabilities")
-    print("\nDouble-click on visualization to add heat sources!")
+    print("\nDouble-click on visualisation to add heat sources!")
     
     demo = InteractiveHeatDemo()
     demo.run()
