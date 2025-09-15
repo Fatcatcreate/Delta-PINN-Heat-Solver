@@ -27,7 +27,7 @@ except ImportError:
     print("PyTorch not available. PINN functionality disabled.")
 
 from domainShapes import Domain3D, DomainFactory
-from visualization import HeatVisualisation3D
+from visualisation import HeatVisualisation3D
 from convertObj import convertObjToSdf
 
 if TORCH_AVAILABLE:
@@ -52,7 +52,7 @@ class InteractiveHeatDemo:
         self.numericalData = None
         self.currentPinnSolution = None
         
-        # Visualization
+        # Visualisation
         self.viz = HeatVisualisation3D('./demo_output')
         
         # Threading
@@ -61,8 +61,8 @@ class InteractiveHeatDemo:
         
         self.setupGui()
 
-    def getSanitizedDomainName(self):
-        """Returns a sanitized version of the domain name suitable for filenames."""
+    def getSanitisedDomainName(self):
+        """Returns a sanitised version of the domain name suitable for filenames."""
         if self.domainType.endswith('.npy'):
             return os.path.splitext(os.path.basename(self.domainType))[0]
         return self.domainType
@@ -114,7 +114,7 @@ class InteractiveHeatDemo:
         vizFrame.pack(side='right', fill='both', expand=True, padx=10, pady=10)
         
         self.setupControls(scrollableFrame)
-        self.setupVisualization(vizFrame)
+        self.setupVisualisation(vizFrame)
         
         # Start background worker
         self.workerThread = threading.Thread(target=self.backgroundWorker, daemon=True)
@@ -146,7 +146,7 @@ class InteractiveHeatDemo:
                                 command=self.load_obj_file)
         loadObjBtn.pack(fill='x', pady=(5, 0))
         
-        ttk.Label(domainFrame, text="Voxelization Resolution:").pack(anchor='w', pady=(5, 0))
+        ttk.Label(domainFrame, text="Voxelisation Resolution:").pack(anchor='w', pady=(5, 0))
         self.resolutionVar = tk.IntVar(value=128)
         resolutionScale = ttk.Scale(domainFrame, from_=8, to=512, variable=self.resolutionVar,
                                orient='horizontal')
@@ -285,8 +285,8 @@ class InteractiveHeatDemo:
                                              command=self.showSurface3dPlot, state='disabled')
         self.showSurface3dBtn.pack(fill='x', pady=(0, 5))
 
-        # Model Management & Full Visualization
-        manageFrame = ttk.LabelFrame(parent, text="Model Management & Visualization")
+        # Model Management & Full Visualisation
+        manageFrame = ttk.LabelFrame(parent, text="Model Management & Visualisation")
         manageFrame.pack(fill='x', pady=(0, 10))
 
         self.loadBtn = ttk.Button(manageFrame, text="Load Model",
@@ -297,8 +297,8 @@ class InteractiveHeatDemo:
                                     command=self.saveModel, state='disabled')
         self.saveBtn.pack(fill='x', pady=(0, 5))
 
-        self.genVizBtn = ttk.Button(manageFrame, text="Generate All Visualizations",
-                                    command=self.generateAllVisualizations, state='disabled')
+        self.genVizBtn = ttk.Button(manageFrame, text="Generate All Visualisations",
+                                    command=self.generateAllVisualisations, state='disabled')
         self.genVizBtn.pack(fill='x', pady=(0, 5))
         
         # Export buttons
@@ -309,8 +309,8 @@ class InteractiveHeatDemo:
                   command=self.saveConfig).pack(fill='x', pady=(0, 2))
         ttk.Button(exportFrame, text="Load Configuration", 
                   command=self.loadConfig).pack(fill='x', pady=(0, 2))
-        ttk.Button(exportFrame, text="Export Visualization", 
-                  command=self.exportVisualization).pack(fill='x')
+        ttk.Button(exportFrame, text="Export Visualisation", 
+                  command=self.exportVisualisation).pack(fill='x')
         
         # Status
         statusFrame = ttk.LabelFrame(parent, text="Status")
@@ -326,12 +326,12 @@ class InteractiveHeatDemo:
         self.progressBar = ttk.Progressbar(statusFrame, orient='horizontal', mode='determinate')
         self.progressBar.pack(side='bottom', fill='x')
         
-        self.logMessage("Interactive Heat Diffusion Demo initialized.")
+        self.logMessage("Interactive Heat Diffusion Demo initialised.")
         if not TORCH_AVAILABLE:
             self.logMessage("WARNING: PyTorch not available. PINN functionality disabled.")
     
-    def setupVisualization(self, parent):
-        """Setup visualization panel with matplotlib"""
+    def setupVisualisation(self, parent):
+        """Setup visualisation panel with matplotlib"""
         
         # Create matplotlib figure
         from matplotlib.figure import Figure
@@ -345,14 +345,14 @@ class InteractiveHeatDemo:
         toolbar = NavigationToolbar2Tk(self.canvas, parent)
         toolbar.update()
         
-        # Initialize plots
-        self.updateVisualization()
+        # Initialise plots
+        self.updateVisualisation()
         
         # Mouse interaction for adding sources
         self.canvas.mpl_connect('button_press_event', self.onCanvasClick)
     
     def onCanvasClick(self, event):
-        """Handle mouse clicks on visualization for adding heat sources"""
+        """Handle mouse clicks on visualisation for adding heat sources"""
         if event.inaxes and event.button == 1 and event.dblclick:  # Double-click
             # Get click coordinates
             xClick, yClick = event.xdata, event.ydata
@@ -371,7 +371,7 @@ class InteractiveHeatDemo:
                 })
                 
                 self.updateSourceList()
-                self.updateVisualization()
+                self.updateVisualisation()
                 self.logMessage(f"Added heat source at ({xClick:.3f}, {yClick:.3f}, {zClick:.3f})")
             else:
                 self.logMessage("Cannot add heat source outside domain.")
@@ -390,7 +390,7 @@ class InteractiveHeatDemo:
             self.compareBtn.config(state='disabled')
             self.animateBtn.config(state='disabled')
             
-            self.updateVisualization()
+            self.updateVisualisation()
 
     def load_obj_file(self):
         """Load an .obj file, convert it to a voxelized domain, and set it as the current domain."""
@@ -444,9 +444,9 @@ class InteractiveHeatDemo:
         self.tCurrent = self.tVar.get()
         self.timeLabel.config(text=f"t = {self.tCurrent:.3f}")
         
-        # Update visualization if solutions exist
+        # Update visualisation if solutions exist
         if self.pinnModel or self.numericalData:
-            self.updateSolutionVisualization()
+            self.updateSolutionVisualisation()
 
     def onSmoothingChange(self, event=None):
         """Handle smoothing slider change"""
@@ -480,7 +480,7 @@ class InteractiveHeatDemo:
         })
         
         self.updateSourceList()
-        self.updateVisualization()
+        self.updateVisualisation()
         self.logMessage(f"Added random heat source at ({xPos:.3f}, {yPos:.3f}, {zPos:.3f})")
     
     def addManualSource(self):
@@ -500,7 +500,7 @@ class InteractiveHeatDemo:
                 })
                 
                 self.updateSourceList()
-                self.updateVisualization()
+                self.updateVisualisation()
                 self.logMessage(f"Added manual heat source at ({xPos:.3f}, {yPos:.3f}, {zPos:.3f})")
             else:
                 messagebox.showerror("Error", "Position is outside the selected domain.")
@@ -515,7 +515,7 @@ class InteractiveHeatDemo:
             idx = selection[0]
             removedSource = self.heatSources.pop(idx)
             self.updateSourceList()
-            self.updateVisualization()
+            self.updateVisualisation()
             pos = removedSource['position']
             self.logMessage(f"Removed heat source at ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})")
     
@@ -524,7 +524,7 @@ class InteractiveHeatDemo:
         if self.heatSources:
             self.heatSources.clear()
             self.updateSourceList()
-            self.updateVisualization()
+            self.updateVisualisation()
             self.logMessage("Cleared all heat sources.")
     
     def updateSourceList(self):
@@ -535,8 +535,8 @@ class InteractiveHeatDemo:
             amp = source['amplitude']
             self.sourceListbox.insert(tk.END, f"Source {i+1}: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f}) A={amp:.2f}")
     
-    def updateVisualization(self):
-        """Update the main visualization"""
+    def updateVisualisation(self):
+        """Update the main visualisation"""
         self.fig.clear()
         
         ax = self.fig.add_subplot(111)
@@ -549,31 +549,31 @@ class InteractiveHeatDemo:
         ZTest = np.full_like(XTest, (bounds[2][0] + bounds[2][1]) / 2)
         
         insideMask = self.domain.isInside(XTest, YTest, ZTest)
-        ax.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colors='black', linewidths=2)
-        ax.contourf(XTest, YTest, insideMask.astype(float), levels=[0.5, 1.5], colors=['lightblue'], alpha=0.3)
+        ax.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colours='black', linewidths=2)
+        ax.contourf(XTest, YTest, insideMask.astype(float), levels=[0.5, 1.5], colours=['lightblue'], alpha=0.3)
         
         if not self.heatSources:
             # Show empty domain with instructions
-            ax.set_title(f"Domain: {self.getSanitizedDomainName()} (Double-click to add heat source)")
+            ax.set_title(f"Domain: {self.getSanitisedDomainName()} (Double-click to add heat source)")
         else:
             # Show domain with heat sources
             # Plot heat sources
-            colors = ['red', 'orange', 'yellow', 'purple', 'green', 'cyan', 'magenta']
+            colours = ['red', 'orange', 'yellow', 'purple', 'green', 'cyan', 'magenta']
             for i, source in enumerate(self.heatSources):
                 x0, y0, z0 = source['position']
                 amplitude = source['amplitude']
                 sigma = source.get('sigma', 0.05)
                 
-                ax.scatter([x0], [y0], c=colors[i % len(colors)], 
+                ax.scatter([x0], [y0], c=colours[i % len(colours)], 
                           s=200 * amplitude, alpha=0.8, 
                           label=f'Source {i+1}')
                 
                 # Influence circle
                 circle = patches.Circle((x0, y0), 3*sigma, fill=False, 
-                                      color=colors[i % len(colors)], alpha=0.5, linestyle='--')
+                                      colour=colours[i % len(colours)], alpha=0.5, linestyle='--')
                 ax.add_patch(circle)
             
-            ax.set_title(f'Heat Sources - {self.getSanitizedDomainName()}')
+            ax.set_title(f'Heat Sources - {self.getSanitisedDomainName()}')
             ax.legend()
 
         ax.set_xlabel('X')
@@ -583,8 +583,8 @@ class InteractiveHeatDemo:
         
         self.canvas.draw()
     
-    def updateSolutionVisualization(self):
-        """Update visualization with current solution"""
+    def updateSolutionVisualisation(self):
+        """Update visualisation with current solution"""
         if not (self.pinnModel or self.numericalData):
             return
         
@@ -683,7 +683,7 @@ class InteractiveHeatDemo:
             ax.set_ylabel('Y')
             ax.set_aspect('equal')
             
-            # Add colorbar
+            # Add colourbar
             self.fig.colorbar(im, ax=ax, shrink=0.8)
         
         self.fig.tight_layout()
@@ -776,7 +776,7 @@ class InteractiveHeatDemo:
         
         self.logMessage("Creating detailed comparison...")
         
-        # Use visualization module for detailed comparison
+        # Use visualisation module for detailed comparison
         try:
             # Create temporary PINN solution data
             device = 'cpu'
@@ -788,7 +788,7 @@ class InteractiveHeatDemo:
             
             # Create comparison plot
             self.viz.createComparisonPlot(pinnData, self.numericalData, timeIdx,
-                                          saveName=f"comparison_{self.getSanitizedDomainName()}")
+                                          saveName=f"comparison_{self.getSanitisedDomainName()}")
             
             self.logMessage("Comparison saved to ./demo_output/")
             
@@ -798,14 +798,14 @@ class InteractiveHeatDemo:
     def show3dPlot(self):
         """Generate and show an interactive 3D plot"""
         if not self.pinnModel:
-            messagebox.showwarning("Warning", "A trained PINN model is required for 3D visualization.")
+            messagebox.showwarning("Warning", "A trained PINN model is required for 3D visualisation.")
             return
 
         self.logMessage("Generating interactive 3D plot with volumetric rendering...")
 
         try:
             # Generate plot
-            saveName = f"interactive_3d_{self.getSanitizedDomainName()}"
+            saveName = f"interactive_3d_{self.getSanitisedDomainName()}"
             fig = self.viz.plotVolumetricRendering(self.pinnModel, self.domain, 
                                                      tMax=self.tMax, timeSteps=20,
                                                      title=f"PINN 3D Solution - {self.domainType}",
@@ -827,7 +827,7 @@ class InteractiveHeatDemo:
     def showSurface3dPlot(self):
         """Generate and show an interactive 3D surface plot"""
         if not self.pinnModel:
-            messagebox.showwarning("Warning", "A trained PINN model is required for 3D visualization.")
+            messagebox.showwarning("Warning", "A trained PINN model is required for 3D visualisation.")
             return
 
         self.logMessage("Generating interactive 3D surface plot...")
@@ -837,7 +837,7 @@ class InteractiveHeatDemo:
             smoothingVal = self.smoothingVar.get()
 
             # Generate plot
-            saveName = f"interactive_3d_surface_{self.getSanitizedDomainName()}"
+            saveName = f"interactive_3d_surface_{self.getSanitisedDomainName()}"
             fig = self.viz.plotSurfaceHeatmap(self.pinnModel, self.domain, 
                                                   tMax=self.tMax, timeSteps=20,
                                                   title=f"PINN 3D Surface Solution - {self.domainType}",
@@ -867,7 +867,7 @@ class InteractiveHeatDemo:
         try:
             self.viz.createAnimation(self.numericalData, fps=5,
                                     title=f"Heat Diffusion - {self.domainType}",
-                                    saveName=f"animation_{self.getSanitizedDomainName()}")
+                                    saveName=f"animation_{self.getSanitisedDomainName()}")
             
             self.logMessage("Animation saved to ./demo_output/")
             
@@ -895,7 +895,7 @@ class InteractiveHeatDemo:
                     self.compareBtn.config(state='disabled')
                     self.animateBtn.config(state='disabled')
                     
-                    self.updateVisualization()
+                    self.updateVisualisation()
                     
             except queue.Empty:
                 continue
@@ -1034,22 +1034,22 @@ class InteractiveHeatDemo:
                 self.timeScale.config(to=self.tMax)
                 
                 self.updateSourceList()
-                self.updateVisualization()
+                self.updateVisualisation()
                 
                 self.logMessage(f"Configuration loaded from {filename}")
                 
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load configuration: {e}")
     
-    def exportVisualization(self):
-        """Export current visualization"""
+    def exportVisualisation(self):
+        """Export current visualisation"""
         filename = filedialog.asksaveasfilename(
             defaultextension=".png",
             filetypes=[("PNG files", "*.png"), ("PDF files", "*.pdf"), ("All files", "*.*" )])
         
         if filename:
             self.fig.savefig(filename, dpi=150, bbox_inches='tight')
-            self.logMessage(f"Visualization exported to {filename}")
+            self.logMessage(f"Visualisation exported to {filename}")
 
     def loadModel(self):
         """Load a pre-trained model from a file."""
@@ -1084,8 +1084,8 @@ class InteractiveHeatDemo:
             self.alphaVar.set(self.alpha)
             self.alphaLabel.config(text=f"α = {self.alpha:.3f}")
             self.updateSourceList()
-            self.updateVisualization()
-            self.updateSolutionVisualization()
+            self.updateVisualisation()
+            self.updateSolutionVisualisation()
 
             # Enable buttons
             self.saveBtn.config(state='normal')
@@ -1143,17 +1143,17 @@ class InteractiveHeatDemo:
             self.logMessage(f"Error saving model: {e}")
             messagebox.showerror("Error", f"Failed to save model: {e}")
 
-    def generateAllVisualizations(self):
-        """Generate and save a standard set of visualization files, then open them."""
+    def generateAllVisualisations(self):
+        """Generate and save a standard set of visualisation files, then open them."""
         if not self.pinnModel:
             messagebox.showwarning("Warning", "A trained or loaded PINN model is required.")
             return
 
-        self.logMessage("Generating all standard visualizations... This may take a moment.")
+        self.logMessage("Generating all standard visualisations... This may take a moment.")
         
         htmlFilesToOpen = []
         try:
-            domainName = self.getSanitizedDomainName()
+            domainName = self.getSanitisedDomainName()
 
             # --- Static Plots ---
             self.viz.plotHeatSources(self.heatSources, self.domain, save_name=f"sources_{domainName}")
@@ -1173,11 +1173,11 @@ class InteractiveHeatDemo:
             _, isoPath = self.viz.plot3dIsosurfaces(pinnSolution, title=f"PINN Solution - {domainName}", save_name=f"pinn_iso_{domainName}")
             if isoPath: htmlFilesToOpen.append(isoPath)
 
-            self.logMessage(f"All visualizations saved to ./demo_output/")
-            messagebox.showinfo("Success", "All visualizations generated. Opening interactive plots in browser...")
+            self.logMessage(f"All visualisations saved to ./demo_output/")
+            messagebox.showinfo("Success", "All visualisations generated. Opening interactive plots in browser...")
 
         except Exception as e:
-            self.logMessage(f"Error generating visualizations: {e}")
+            self.logMessage(f"Error generating visualisations: {e}")
             messagebox.showerror("Error", f"An error occurred: {e}")
             return
 
@@ -1243,7 +1243,7 @@ class InteractiveHeatDemo:
                     self.compareBtn.config(state='disabled')
                     self.animateBtn.config(state='disabled')
                     
-                    self.updateVisualization()
+                    self.updateVisualisation()
 
                 elif result['type'] == 'error':
                     self.logMessage(f"Background task error: {result['message']}")
@@ -1321,7 +1321,7 @@ def main():
     print("- Multiple domain shapes (cube, sphere, L-shape, torus, cylinder with holes)")
     print("- Click-to-add heat sources")
     print("- Real-time PINN vs Numerical comparison")
-    print("- 3D visualization and animation")
+    print("- 3D visualisation and animation")
     print("- Export capabilities")
     print("\nDouble-click on visualisation to add heat sources!")
     

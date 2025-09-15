@@ -87,10 +87,10 @@ class DeltaPINN3D(nn.Module):
         self.logSigmaBc = nn.Parameter(torch.zeros(1))
         self.logSigmaIc = nn.Parameter(torch.zeros(1))
         
-        self.initializeWeights()
+        self.initialiseWeights()
     
-    def initializeWeights(self):
-        """Xavier initialization with special handling for residual blocks"""
+    def initialiseWeights(self):
+        """Xavier initialisation with special handling for residual blocks"""
         def initWeights(m):
             if isinstance(m, nn.Linear):
                 nn.init.xavier_normal_(m.weight)
@@ -100,7 +100,7 @@ class DeltaPINN3D(nn.Module):
         self.apply(initWeights)
     
     def forward(self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        # Normalize inputs to [-1, 1] for better convergence
+        # Normalise inputs to [-1, 1] for better convergence
         xNorm = 2 * x - 1  
         yNorm = 2 * y - 1
         zNorm = 2 * z - 1
@@ -263,7 +263,7 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
     
     print(f"Using device: {device}")
     
-    # Initialize model
+    # Initialise model
     model = DeltaPINN3D(
         hiddenSize=args.hiddenSize,
         numLayers=args.numLayers,
@@ -358,7 +358,7 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
                 print(f"BC Loss: {bcLoss.item():.6e}")
                 print(f"IC Loss: {icLoss.item():.6e}")
                 print(f"Adaptive Weights: PDE={wPde:.3f}, BC={wBc:.3f}, IC={wIc:.3f}")
-                print(f"Learning Rate: {optimizer.param_groups[0]['lr']:.2e}")
+                print(f"Learning Rate: {optimizer.param_groups[0]["lr"]:.2e}")
     
     # Load best model
     if bestModelState is not None:
@@ -369,19 +369,22 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
     os.makedirs(args.saveDir, exist_ok=True)
     
     domain_filename = os.path.basename(domain.name)
-    domain_name_sanitized = os.path.splitext(domain_filename)[0]
+    domain_name_sanitised = os.path.splitext(domain_filename)[0]
 
-    modelPath = os.path.join(args.saveDir, f"deltaPinn3d_{domain_name_sanitized.lower()}.pt")
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'history': history,
-        'args': vars(args),
-        'domain_name': domain.name,
-        'heat_sources': heatSources
-    }, modelPath)
+    modelPath = os.path.join(args.saveDir, f"deltaPinn3d_{domain_name_sanitised.lower()}.pt")
+    torch.save(
+        {
+            'model_state_dict': model.state_dict(),
+            'history': history,
+            'args': vars(args),
+            'domain_name': domain.name,
+            'heat_sources': heatSources,
+        },
+        modelPath,
+    )
     
     # Save training history to CSV
-    historyPath = os.path.join(args.saveDir, f"training_history_{domain_name_sanitized.lower()}.csv")
+    historyPath = os.path.join(args.saveDir, f"training_history_{domain_name_sanitised.lower()}.csv")
     with open(historyPath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Epoch', 'Total_Loss', 'PDE_Loss', 'BC_Loss', 'IC_Loss', 
@@ -531,7 +534,7 @@ def main():
     for i, source in enumerate(heatSources):
         pos = source['position']
         print(f"  {i+1}: pos=({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}), "
-              f"amp={source['amplitude']:.3f}, σ={source['sigma']:.3f}")
+              f"amp={source['amplitude']:.3f}, \u03c3={source['sigma']:.3f}")
     
     # Train model
     model = trainDeltaPinn3d(args, domain, heatSources)
