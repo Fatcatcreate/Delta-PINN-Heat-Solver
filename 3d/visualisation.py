@@ -863,7 +863,7 @@ def visualiseTrainingResults(modelPath: str, numericalPath: Optional[str] = None
     # Create domain
     domain = DomainFactory.createDomain(domainName.lower())
     
-    # Initialise visualizer
+    # Initialise visualiser
     viz = HeatVisualisation3D()
     
     # Plot heat source configuration

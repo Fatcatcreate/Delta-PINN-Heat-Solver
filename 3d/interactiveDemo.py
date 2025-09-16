@@ -326,7 +326,7 @@ class InteractiveHeatDemo:
         self.progressBar = ttk.Progressbar(statusFrame, orient='horizontal', mode='determinate')
         self.progressBar.pack(side='bottom', fill='x')
         
-        self.logMessage("Interactive Heat Diffusion Demo initialized.")
+        self.logMessage("Interactive Heat Diffusion Demo initialised.")
         if not TORCH_AVAILABLE:
             self.logMessage("WARNING: PyTorch not available. PINN functionality disabled.")
     
@@ -393,7 +393,7 @@ class InteractiveHeatDemo:
             self.updateVisualisation()
 
     def load_obj_file(self):
-        """Load an .obj file, convert it to a voxelized domain, and set it as the current domain."""
+        """Load an .obj file, convert it to a voxelised domain, and set it as the current domain."""
         filepath = filedialog.askopenfilename(
             title="Select .obj or .npy File",
             filetypes=(("3D Files", "*.obj *.npy"), ("All files", "*.*" ))
