@@ -239,8 +239,8 @@ class VoxelDomain(Domain3D):
             print(f"  - Pitch: {self.pitch}", flush=True)
             
             # Check if the SDF is inverted
-            centre_voxel_index = tuple(s // 2 for s in self.sdfData.shape)
-            if self.sdfData[centre_voxel_index] > 0:
+            centreVoxelIndex = tuple(s // 2 for s in self.sdfData.shape)
+            if self.sdfData[centreVoxelIndex] > 0:
                 print("SDF in .npy file seems to be inverted, flipping the sign.", flush=True)
                 self.sdfData = -self.sdfData
 

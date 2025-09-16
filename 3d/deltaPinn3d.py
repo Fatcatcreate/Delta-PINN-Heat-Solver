@@ -369,9 +369,9 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
     os.makedirs(args.saveDir, exist_ok=True)
     
     domain_filename = os.path.basename(domain.name)
-    domain_name_sanitised = os.path.splitext(domain_filename)[0]
+    domainNameSanitised = os.path.splitext(domain_filename)[0]
 
-    modelPath = os.path.join(args.saveDir, f"deltaPinn3d_{domain_name_sanitised.lower()}.pt")
+    modelPath = os.path.join(args.saveDir, f"deltaPinn3d_{domainNameSanitised.lower()}.pt")
     torch.save(
         {
             'model_state_dict': model.state_dict(),
@@ -384,7 +384,7 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
     )
     
     # Save training history to CSV
-    historyPath = os.path.join(args.saveDir, f"training_history_{domain_name_sanitised.lower()}.csv")
+    historyPath = os.path.join(args.saveDir, f"training_history_{domainNameSanitised.lower()}.csv")
     with open(historyPath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Epoch', 'Total_Loss', 'PDE_Loss', 'BC_Loss', 'IC_Loss', 
@@ -412,7 +412,7 @@ def loadTrainedModel(modelPath: str, device: str = 'cpu') -> Tuple[DeltaPINN3D, 
         numLayers=argsDict['num_layers'],
         useFourier=argsDict['use_fourier'],
         fourierScale=argsDict['fourier_scale'],
-        useResidual=argsDict['use_residual']
+        useResidual=argsDict['useResidual']
     )
     
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -472,7 +472,7 @@ def main():
     parser.add_argument('--num_layers', type=int, default=6, help='Number of hidden layers')
     parser.add_argument('--use_fourier', action='store_true', default=True, help='Use Fourier features')
     parser.add_argument('--fourier_scale', type=float, default=1.0, help='Fourier feature scale')
-    parser.add_argument('--use_residual', action='store_true', default=True, help='Use residual connections')
+    parser.add_argument('--useResidual', action='store_true', default=True, help='Use residual connections')
     
     # Training parameters
     parser.add_argument('--epochs', type=int, default=5000, help='Training epochs')
@@ -489,19 +489,19 @@ def main():
     parser.add_argument('--domain', type=str, default='sphere', 
                        choices=['cube', 'sphere', 'lshape', 'torus', 'cylinder_holes'],
                        help='Domain shape')
-    parser.add_argument('--num_sources', type=int, default=2, help='Number of heat sources')
+    parser.add_argument('--numSources', type=int, default=2, help='Number of heat sources')
     
     # System parameters
     parser.add_argument('--device', type=str, default='auto', help='Device: cpu, cuda, mps, or auto')
     parser.add_argument('--seed', type=int, default=1337, help='Random seed')
-    parser.add_argument('--save_dir', type=str, default='./models', help='Save directory')
-    parser.add_argument('--log_interval', type=int, default=500, help='Logging interval')
+    parser.add_argument('--saveDir', type=str, default='./models', help='Save directory')
+    parser.add_argument('--logInterval', type=int, default=500, help='Logging interval')
     
     args = parser.parse_args()
     
     print("=== 3D Delta-PINN Heat Diffusion Training ===")
     print(f"Domain: {args.domain}")
-    print(f"Heat sources: {args.num_sources}")
+    print(f"Heat sources: {args.numSources}")
     print(f"Architecture: {args.num_layers} layers, {args.hidden_size} hidden units")
     print(f"Training: {args.epochs} epochs, lr={args.lr}")
     
@@ -514,7 +514,7 @@ def main():
     bounds = domain.bounds()
     heatSources = []
     
-    for i in range(args.num_sources):
+    for i in range(args.numSources):
         xRange = bounds[0]
         yRange = bounds[1] 
         zRange = bounds[2]

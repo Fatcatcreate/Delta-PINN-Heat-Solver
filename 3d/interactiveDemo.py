@@ -326,7 +326,7 @@ class InteractiveHeatDemo:
         self.progressBar = ttk.Progressbar(statusFrame, orient='horizontal', mode='determinate')
         self.progressBar.pack(side='bottom', fill='x')
         
-        self.logMessage("Interactive Heat Diffusion Demo initialised.")
+        self.logMessage("Interactive Heat Diffusion Demo initialized.")
         if not TORCH_AVAILABLE:
             self.logMessage("WARNING: PyTorch not available. PINN functionality disabled.")
     
@@ -637,9 +637,9 @@ class InteractiveHeatDemo:
                 
                 numSolGrid = np.full(gridShape, np.nan)
                 # Interpolate or use available data
-                if 'interior_indices' in self.numericalData:
+                if 'interiorIndices' in self.numericalData:
                     # Map to new grid (simplified)
-                    interiorIdx = self.numericalData['interior_indices']
+                    interiorIdx = self.numericalData['interiorIndices']
                     for i, val in enumerate(numSol):
                         if i < len(interiorIdx[0]):
                             ii, jj, kk = interiorIdx[0][i], interiorIdx[1][i], interiorIdx[2][i]
@@ -684,7 +684,7 @@ class InteractiveHeatDemo:
             ax.set_aspect('equal')
             
             # Add colourbar
-            self.fig.colorbar(im, ax=ax, shrink=0.8)
+            self.fig.colourbar(im, ax=ax, shrink=0.8)
         
         self.fig.tight_layout()
         self.canvas.draw()

@@ -215,7 +215,7 @@ class HeatSolver3D:
             'method': 'explicit',
             'dt': dt,
             'grid_shape': (self.nX, self.nY, self.nZ),
-            'n_interior': self.nInterior
+            'nInterior': self.nInterior
         }
     
     def solveImplicit(self, heatSources: List[Dict], tFinal: float = 1.0,
@@ -280,7 +280,7 @@ class HeatSolver3D:
             'method': 'implicit',
             'dt': dt,
             'grid_shape': (self.nX, self.nY, self.nZ),
-            'n_interior': self.nInterior
+            'nInterior': self.nInterior
         }
     
     def interiorToGrid(self, uInterior: np.ndarray) -> np.ndarray:
@@ -434,7 +434,7 @@ if __name__ == '__main__':
     parser.add_argument('--method', type=str, default='implicit', choices=['explicit', 'implicit'],
                        help='Time integration method')
     parser.add_argument('--benchmark', action='store_true', help='Run benchmark comparison')
-    parser.add_argument('--save_dir', type=str, default='./numerical_solutions', help='Save directory')
+    parser.add_argument('--saveDir', type=str, default='./numerical_solutions', help='Save directory')
     
     args = parser.parse_args()
     
@@ -447,7 +447,7 @@ if __name__ == '__main__':
             alpha=args.alpha,
             tFinal=args.t_final,
             method=args.method,
-            saveDir=args.save_dir
+            saveDir=args.saveDir
         )
         
         print(f"\nSolution computed with {len(solution['times'])} time points")

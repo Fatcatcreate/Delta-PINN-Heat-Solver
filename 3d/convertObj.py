@@ -26,8 +26,8 @@ def convertObjToSdf(obj_file_path, output_npy_path, resolution=64):
             print("Warning: Could not make the mesh watertight. The SDF might be inaccurate.")
 
     # calculate pitch based on resolution
-    max_dim = np.max(mesh.extents)
-    pitch = max_dim / resolution
+    maxDim = np.max(mesh.extents)
+    pitch = maxDim / resolution
     
     print(f"Voxelising mesh with a pitch of {pitch} (resolution: {resolution})...")
     bounds = mesh.bounds
@@ -45,8 +45,8 @@ def convertObjToSdf(obj_file_path, output_npy_path, resolution=64):
     sdf = sdf.reshape(shape)
 
     # Check if the SDF is inverted by checking the centre of the voxel grid
-    centre_voxel_index = tuple(s // 2 for s in shape)
-    if sdf[centre_voxel_index] > 0:
+    centreVoxelIndex = tuple(s // 2 for s in shape)
+    if sdf[centreVoxelIndex] > 0:
         print("SDF seems to be inverted, flipping the sign.")
         sdf = -sdf
 

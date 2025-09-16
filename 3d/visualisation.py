@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation, PillowWriter
 import matplotlib.patches as patches
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colours import LinearSegmentedColormap
 import os
 import pickle
 import torch
@@ -585,7 +585,7 @@ class HeatVisualisation3D:
         # Error histogram
         errorValid = error[~np.isnan(error)]
         if len(errorValid) > 0:
-            axes[1,0].hist(errorValid, bins=50, alpha=0.7, colour='red', edgecolor='black')
+            axes[1,0].hist(errorValid, bins=50, alpha=0.7, colour='red', edgecolour='black')
             axes[1,0].set_xlabel('Absolute Error')
             axes[1,0].set_ylabel('Frequency')
             axes[1,0].set_title('Error Distribution')
@@ -912,9 +912,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="3D Heat Diffusion Visualisation")
     parser.add_argument('--model_path', type=str, required=True, help='Path to trained model')
     parser.add_argument('--numerical_path', type=str, help='Path to numerical solution')
-    parser.add_argument('--t_eval', type=float, default=1.0, help='Evaluation time')
+    parser.add_argument('--tEval', type=float, default=1.0, help='Evaluation time')
     parser.add_argument('--device', type=str, default='cpu', help='Device for inference')
     
     args = parser.parse_args()
     
-    visualiseTrainingResults(args.model_path, args.numerical_path, args.t_eval, args.device)
+    visualiseTrainingResults(args.model_path, args.numerical_path, args.tEval, args.device)
