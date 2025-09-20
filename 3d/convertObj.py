@@ -31,13 +31,13 @@ def convertObjToSdf(obj_file_path, output_npy_path, resolution=64):
     
     print(f"Voxelising mesh with a pitch of {pitch} (resolution: {resolution})...")
     bounds = mesh.bounds
-    voxelised_mesh = mesh.voxelised(pitch=pitch)
+    voxelized_mesh = mesh.voxelized(pitch=pitch)
     
     print("Converting voxel grid to a signed distance function...")
-    shape = voxelised_mesh.shape
+    shape = voxelized_mesh.shape
     x, y, z = np.indices(shape)
     indices = np.stack((x.ravel(), y.ravel(), z.ravel()), axis=1)
-    transform = voxelised_mesh.transform
+    transform = voxelized_mesh.transform
     points = trimesh.transform_points(indices, transform)
     sdf = trimesh.proximity.signed_distance(mesh, points)
     

@@ -152,7 +152,7 @@ Beyond the predefined shapes, this framework supports the use of custom 3D geome
 
 The accuracy and validity of the generated SDF are critically dependent on the topological properties of the input mesh. For a successful conversion, the `.obj` model **must be a watertight manifold**.
 
-*   **Watertight Geometry:** A watertight, or "manifold," mesh is one that represents a fully enclosed volume with no holes. Every edge must be shared by exactly two faces. This property is essential because the SDF algorithm needs to unambiguously distinguish the interior from the exterior of the domain. Non-watertight meshes, which may contain holes, disconnected components, or non-manifold edges, can lead to an ambiguous or incorrect SDF, where the sign of the distance is flipped, effectively turning the object "inside-out."
+*   **Watertight Geometry:** A watertight, or "manifold," mesh is one that represents a fully enclosed volume with no holes. Every edge must be shared by exactly two faces. This property is essential because the SDF algorithm needs to unambiguously distinguish the interior from the exterior of the domain. Non-watertight meshes, which may contain holes, disconnected components, or non-manifold edges, can lead to an ambiguous or incorrect SDF, where the sign of the distance is flipped, effectively turning the object "inside-out." The code will attempt to automatically fill holes in non-watertight meshes, but this process may not always succeed. For best results, it is recommended to use a watertight mesh.
 
 *   **Consistent Face Normals:** The orientation of the faces (normals) in the mesh should be consistent, with all normals pointing outwards from the volume. The sign of the SDF at a given point is determined by the dot product of the vector from the closest point on the mesh to the query point and the normal of that closest face. Inconsistent normals will result in an incorrect sign for the SDF.
 
@@ -183,6 +183,8 @@ For best results, it is highly recommended to prepare custom `.obj` models in a 
 *   **Recalculating Normals:** Ensure all normals are pointing outwards.
 *   **Simplifying Geometry:** For very complex models, simplifying the mesh can significantly reduce the memory and time required for SDF generation without sacrificing too much accuracy for the simulation.
 
+**Note:** The numerical solver currently only supports the standard, built-in domain shapes (e.g., sphere, cube). Custom domains loaded from `.obj` files are only compatible with the PINN solver.
+
 By adhering to these requirements, you can accurately simulate heat diffusion in a wide variety of complex, custom-defined domains.
 
 ## 4. Usage and Reproducibility
@@ -204,6 +206,7 @@ Once launched, the interactive demo provides a comprehensive GUI for running sim
 *   **Domain Configuration:**
     *   **Domain Shape:** Select from a list of predefined shapes (e.g., `sphere`, `cube`).
     *   **Load .obj File:** Load a custom geometry from a `.obj` or `.npy` file.
+    *   **Voxelisation Resolution:** Adjust the resolution for `.obj` file conversion.
 
 *   **Heat Sources:**
     *   **Add Sources:** Double-click on the 2D visualization plot to add a heat source at that location.
@@ -213,19 +216,46 @@ Once launched, the interactive demo provides a comprehensive GUI for running sim
 *   **Simulation Parameters:**
     *   **Thermal Diffusivity (α):** Adjust the `alpha` parameter for the heat equation.
     *   **Max Time:** Set the total simulation time `t_max`.
+    *   **Surface Smoothing:** Adjust the smoothing for the surface plot interpolation.
+
+*   **Time Control:**
+    *   **Time Slider:** Interactively scrub through time to see the solution evolve in the main visualization window.
 
 *   **Simulation Control:**
-    *   **Train PINN:** Train the Physics-Informed Neural Network on the current configuration.
+    *   **Train PINN:** Train the Physics-Informed Neural Network on the current configuration. Two quality settings are available: a quick training for fast previews and a full quality training for more accurate results.
     *   **Solve Numerical:** Run the finite difference solver to generate a reference solution.
     *   **Compare Solutions:** Generate a side-by-side plot comparing the PINN and numerical results.
     *   **Animate:** Create a GIF of the simulation over time.
-    *   **Show 3D Plot / Show Surface 3D Plot:** Open interactive 3D visualizations in your web browser.
+    *   **Show 3D Plot / Show Surface 3D Plot:** Open interactive 3D visualizations in your web browser. These plots allow you to see the heat diffusion over time using a time slider.
 
 *   **Model Management & Visualisation:**
     *   **Load/Save Model:** Load a pre-trained PINN model or save the currently trained one.
     *   **Generate All Visualisations:** A one-click button to generate and save all possible static and interactive plots to the `demo_output` directory.
 
+*   **Export:**
+    *   **Save/Load Configuration:** Save or load the current simulation setup (domain, heat sources, parameters).
+    *   **Export Visualisation:** Save the current view as a PNG or PDF file.
+
 From the interactive demo, you can configure the domain, add heat sources, train the PINN model, solve for the numerical reference solution, and generate all visualizations.
+
+## Gallery
+
+Here are some sample visualizations generated by the project:
+
+**Heat Diffusion Animation**
+![Animation of heat diffusion in a sphere](3d/demo_output/animation_sphere.gif)
+
+**PINN vs. Numerical Solver Comparison**
+![Comparison of PINN and numerical solutions](3d/demo_output/comparison_sphere_solutions.png)
+
+**Error between PINN and Numerical Solver**
+![Error between PINN and numerical solutions](3d/demo_output/comparison_sphere_error.png)
+
+**PINN Solution Slices**
+![Slices of the PINN solution](3d/visualizations/pinn_slices_Sphere.png)
+
+**Heat Source Configuration**
+![Configuration of heat sources](3d/visualizations/sources_Sphere.png)
 
 ## 5. Conclusion and Future Work
 
@@ -272,7 +302,20 @@ python3 3d/numericalSolution.py \
     --t_final 1.0
 ```
 
+### `visualisation.py`
+
+```bash
+python3 3d/visualisation.py \
+    --model_path /path/to/your/model.pt \
+    --numerical_path /path/to/your/numerical_solution.pkl \
+    --tEval 0.5
+```
+
 ## Troubleshooting
+
+
+**3D plots not showing up?**
+- The interactive 3D plots (volumetric rendering, isosurfaces, surface heatmaps) require the `plotly` library. If it is not installed, the demo will fall back to 2D slices using Matplotlib. To enable the interactive 3D plots, install Plotly: `pip install plotly`
 
 **Model not converging?**
 - Reduce the learning rate.

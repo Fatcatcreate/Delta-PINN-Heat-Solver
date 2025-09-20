@@ -238,10 +238,11 @@ class VoxelDomain(Domain3D):
             print(f"  - Bounds: {self._bounds}", flush=True)
             print(f"  - Pitch: {self.pitch}", flush=True)
             
-            # Check if the SDF is inverted
-            centreVoxelIndex = tuple(s // 2 for s in self.sdfData.shape)
-            if self.sdfData[centreVoxelIndex] > 0:
-                print("SDF in .npy file seems to be inverted, flipping the sign.", flush=True)
+            # Check if the SDF is inverted by checking the percentage of interior points.
+            # If less than 1% of the voxels are inside, we assume the SDF is inverted.
+            mask = self.sdfData <= 1e-6
+            if np.sum(mask) / self.sdfData.size < 0.01:
+                print("SDF in .npy file seems to be inverted (less than 1% interior points), flipping the sign.", flush=True)
                 self.sdfData = -self.sdfData
 
             # Create grid coordinates for interpolation

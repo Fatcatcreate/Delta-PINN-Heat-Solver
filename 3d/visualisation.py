@@ -125,7 +125,7 @@ class HeatVisualisation3D:
                     isomin=isoVal,
                     isomax=isoVal + 1e-9,
                     surface_count=1,
-                    colourscale=plotlyColourscale,
+                    colorscale=plotlyColourscale,
                     showscale=False,
                     opacity=0.7,
                     name=f'T = {isoVal:.3f}'
@@ -197,7 +197,7 @@ class HeatVisualisation3D:
         axes[1,0].set_title(f'YZ Slice (X = {X[midX,0,0]:.2f})')
         axes[1,0].set_xlabel('Y')
         axes[1,0].set_ylabel('Z')
-        plt.colourbar(im3, ax=axes[1,0])
+        plt.colorbar(im3, ax=axes[1,0])
         
         # 3D scatter of high-temperature regions
         ax3d = fig.add_subplot(2, 2, 4, projection='3d')
@@ -211,7 +211,7 @@ class HeatVisualisation3D:
             temps = u[highTempMask]
             scatter = ax3d.scatter(X[xx, yy, zz], Y[xx, yy, zz], Z[xx, yy, zz],
                                  c=temps, cmap=self.heatCmap, s=20, alpha=0.6)
-            plt.colourbar(scatter, ax=ax3d, shrink=0.8)
+            plt.colorbar(scatter, ax=ax3d, shrink=0.8)
         
         ax3d.set_title('High Temperature Regions')
         ax3d.set_xlabel('X')
@@ -225,8 +225,6 @@ class HeatVisualisation3D:
         plt.savefig(outputPath, dpi=150, bbox_inches='tight')
         plt.show()
         print(f"Temperature slices saved to {outputPath}")
-        
-        return fig
     
     def plotVolumetricRendering(self, model: DeltaPINN3D, domain: Domain3D,
                                  tMax: float = 1.0, timeSteps: int = 20,
@@ -271,7 +269,7 @@ class HeatVisualisation3D:
                 value=uNoNan.flatten(),
                 opacity=0.2,
                 surface_count=15,
-                colourscale='Hot',
+                colorscale='Hot',
                 cmin=cmin,
                 cmax=cmax,
                 opacityscale=[[0, 0], [0.2, 0.1], [0.5, 0.3], [0.8, 0.7], [1, 1]],
@@ -311,7 +309,7 @@ class HeatVisualisation3D:
             isomin=0,
             isomax=0,
             surface_count=1,
-            colourscale=[[0, 'grey'], [1, 'grey']],
+            colorscale=[[0, 'grey'], [1, 'grey']],
             showscale=False,
             opacity=0.1,
             name='Domain Boundary'
@@ -422,10 +420,10 @@ class HeatVisualisation3D:
                 j=faces[:, 1],
                 k=faces[:, 2],
                 intensity=interpolatedTemps,
-                colourscale='Jet',
+                colorscale='Jet',
                 cmin=cmin,
                 cmax=cmax,
-                colourbar_title='Temperature',
+                colorbar_title='Temperature',
                 name=f't = {timeValues[i]:.2f}',
                 visible=(i == 0)
             ))
@@ -500,47 +498,47 @@ class HeatVisualisation3D:
         
         # PINN solution slices
         im1 = axes[0,0].contourf(X[midZ], Y[midZ], pinnU[midZ], 
-                                levels=20, cmap=self.heatCmap)
+                                cmap=self.heatCmap)
         axes[0,0].set_title('PINN - XY Slice')
         axes[0,0].set_xlabel('X')
         axes[0,0].set_ylabel('Y')
-        plt.colourbar(im1, ax=axes[0,0])
+        plt.colorbar(im1, ax=axes[0,0])
         
         im2 = axes[0,1].contourf(X[:,midY,:], Z[:,midY,:], pinnU[:,midY,:],
-                                levels=20, cmap=self.heatCmap)
+                                cmap=self.heatCmap)
         axes[0,1].set_title('PINN - XZ Slice')
         axes[0,1].set_xlabel('X')
         axes[0,1].set_ylabel('Z')
-        plt.colourbar(im2, ax=axes[0,1])
+        plt.colorbar(im2, ax=axes[0,1])
         
         im3 = axes[0,2].contourf(Y[midX], Z[midX], pinnU[midX],
-                                levels=20, cmap=self.heatCmap)
+                                cmap=self.heatCmap)
         axes[0,2].set_title('PINN - YZ Slice')
         axes[0,2].set_xlabel('Y')
         axes[0,2].set_ylabel('Z')
-        plt.colourbar(im3, ax=axes[0,2])
+        plt.colorbar(im3, ax=axes[0,2])
         
         # Numerical solution slices
         im4 = axes[1,0].contourf(X[midZ], Y[midZ], numU[midZ],
-                                levels=20, cmap=self.heatCmap)
+                                cmap=self.heatCmap)
         axes[1,0].set_title('Numerical - XY Slice')
         axes[1,0].set_xlabel('X')
         axes[1,0].set_ylabel('Y')
-        plt.colourbar(im4, ax=axes[1,0])
+        plt.colorbar(im4, ax=axes[1,0])
         
         im5 = axes[1,1].contourf(X[:,midY,:], Z[:,midY,:], numU[:,midY,:],
-                                levels=20, cmap=self.heatCmap)
+                                cmap=self.heatCmap)
         axes[1,1].set_title('Numerical - XZ Slice')
         axes[1,1].set_xlabel('X')
         axes[1,1].set_ylabel('Z')
-        plt.colourbar(im5, ax=axes[1,1])
+        plt.colorbar(im5, ax=axes[1,1])
         
         im6 = axes[1,2].contourf(Y[midX], Z[midX], numU[midX],
-                                levels=20, cmap=self.heatCmap)
+                                cmap=self.heatCmap)
         axes[1,2].set_title('Numerical - YZ Slice')
         axes[1,2].set_xlabel('Y')
         axes[1,2].set_ylabel('Z')
-        plt.colourbar(im6, ax=axes[1,2])
+        plt.colorbar(im6, ax=axes[1,2])
         
         plt.tight_layout()
         
@@ -569,23 +567,23 @@ class HeatVisualisation3D:
         
         # Error slices
         im1 = axes[0,0].contourf(X[midZ], Y[midZ], error[midZ],
-                                levels=20, cmap=self.errorCmap)
+                                cmap=self.errorCmap)
         axes[0,0].set_title(f'Error - XY Slice (Z = {Z[midZ,0,midZ]:.2f})')
         axes[0,0].set_xlabel('X')
         axes[0,0].set_ylabel('Y')
-        plt.colourbar(im1, ax=axes[0,0])
+        plt.colorbar(im1, ax=axes[0,0])
         
         im2 = axes[0,1].contourf(X[:,midY,:], Z[:,midY,:], error[:,midY,:],
                                 levels=20, cmap=self.errorCmap)
         axes[0,1].set_title(f'Error - XZ Slice (Y = {Y[0,midY,0]:.2f})')
         axes[0,1].set_xlabel('X')
         axes[0,1].set_ylabel('Z')
-        plt.colourbar(im2, ax=axes[0,1])
+        plt.colorbar(im2, ax=axes[0,1])
         
         # Error histogram
         errorValid = error[~np.isnan(error)]
         if len(errorValid) > 0:
-            axes[1,0].hist(errorValid, bins=50, alpha=0.7, colour='red', edgecolour='black')
+            axes[1,0].hist(errorValid, bins=50, alpha=0.7, color='red', edgecolor='black')
             axes[1,0].set_xlabel('Absolute Error')
             axes[1,0].set_ylabel('Frequency')
             axes[1,0].set_title('Error Distribution')
@@ -596,9 +594,9 @@ class HeatVisualisation3D:
             maxError = np.max(errorValid)
             stdError = np.std(errorValid)
             
-            axes[1,0].axvline(meanError, colour='blue', linestyle='--', 
+            axes[1,0].axvline(meanError, color='blue', linestyle='--', 
                              label=f'Mean: {meanError:.4f}')
-            axes[1,0].axvline(maxError, colour='red', linestyle='--',
+            axes[1,0].axvline(maxError, color='red', linestyle='--',
                              label=f'Max: {maxError:.4f}')
             axes[1,0].legend()
         
@@ -613,7 +611,7 @@ Valid Points: {len(errorValid)}"""
             
             axes[1,1].text(0.1, 0.9, statsText, transform=axes[1,1].transAxes,
                           fontsize=12, verticalalignment='top', 
-                          bbox=dict(boxstyle='round', facecolour='wheat', alpha=0.8))
+                          bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
             axes[1,1].set_title('Error Statistics')
             axes[1,1].axis('off')
         
@@ -715,10 +713,10 @@ Valid Points: {len(errorValid)}"""
             axes[1,1].clear()
             axes[1,1].text(0.5, 0.7, f'Time: {times[frame]:.3f}', 
                           transform=axes[1,1].transAxes, fontsize=20, 
-                          ha='centre', va='centre')
+                          ha='center', va='center')
             axes[1,1].text(0.5, 0.3, f'Max Temp: {np.nanmax(u):.3f}',
                           transform=axes[1,1].transAxes, fontsize=16,
-                          ha='centre', va='centre')
+                          ha='center', va='center')
             axes[1,1].set_title('Current State')
             axes[1,1].axis('off')
             
@@ -787,7 +785,7 @@ Valid Points: {len(errorValid)}"""
             zSphere = z0 + r * np.outer(np.ones(np.size(theta)), np.cos(phi))
             
             ax3d.plot_wireframe(xSphere, ySphere, zSphere, 
-                               alpha=0.3, colour=colours[i % len(colours)])
+                               alpha=0.3, color=colours[i % len(colours)])
         
         ax3d.set_xlabel('X')
         ax3d.set_ylabel('Y')
@@ -808,7 +806,7 @@ Valid Points: {len(errorValid)}"""
         ZTest = np.full_like(XTest, (zBounds[0] + zBounds[1]) / 2)
         
         insideMask = domain.isInside(XTest, YTest, ZTest)
-        ax2d.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colours='black')
+        ax2d.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colors='black')
         
         # Plot heat sources
         for i, source in enumerate(heatSources):
@@ -822,7 +820,7 @@ Valid Points: {len(errorValid)}"""
             
             # Gaussian influence circle
             circle = patches.Circle((x0, y0), 3*sigma, fill=False, 
-                                  colour=colours[i % len(colours)], alpha=0.5)
+                                  color=colours[i % len(colours)], alpha=0.5)
             ax2d.add_patch(circle)
         
         ax2d.set_xlabel('X')

@@ -510,8 +510,8 @@ class InteractiveHeatDemo:
         ZTest = np.full_like(XTest, (bounds[2][0] + bounds[2][1]) / 2)
         
         insideMask = self.domain.isInside(XTest, YTest, ZTest)
-        ax.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colours='black', linewidths=2)
-        ax.contourf(XTest, YTest, insideMask.astype(float), levels=[0.5, 1.5], colours=['lightblue'], alpha=0.3)
+        ax.contour(XTest, YTest, insideMask.astype(float), levels=[0.5], colors='black', linewidths=2)
+        ax.contourf(XTest, YTest, insideMask.astype(float), levels=[0.5, 1.5], colors=['lightblue'], alpha=0.3)
         
         if not self.heatSources:
             ax.set_title(f"Domain: {self.getSanitisedDomainName()} (Double-click to add heat source)")
@@ -568,7 +568,7 @@ class InteractiveHeatDemo:
             try:
                 device = 'cpu'
                 pinnSol = predictSolution3d(self.pinnModel, self.domain, self.tCurrent,
-                                             nx=32, ny=32, nz=32, device=device)
+                                             nX=32, nY=32, nZ=32, device=device)
                 solutions.append(pinnSol['u'])
             except Exception as e:
                 self.logMessage(f"Error predicting PINN solution: {e}")
@@ -586,14 +586,14 @@ class InteractiveHeatDemo:
                 XX, YY, ZZ = np.meshgrid(X, Y, Z, indexing='ij')
                 
                 numSolGrid = np.full(gridShape, np.nan)
-                if 'interiorIndices' in self.numericalData:
-                    interiorIdx = self.numericalData['interiorIndices']
+                if 'interior_indices' in self.numericalData:
+                    interiorIdx = self.numericalData['interior_indices']
                     for i, val in enumerate(numSol):
                         if i < len(interiorIdx[0]):
                             ii, jj, kk = interiorIdx[0][i], interiorIdx[1][i], interiorIdx[2][i]
                             scaleX = (gridShape[0] - 1) / (self.numericalData['grid_shape'][0] - 1)
                             scaleY = (gridShape[1] - 1) / (self.numericalData['grid_shape'][1] - 1)
-                            scaleZ = (gridShape[2][0] - 1) / (self.numericalData['grid_shape'][2] - 1)
+                            scaleZ = (gridShape[2] - 1) / (self.numericalData['grid_shape'][2] - 1)
                             
                             newI = int(ii * scaleX)
                             newJ = int(jj * scaleY)
@@ -894,7 +894,7 @@ class InteractiveHeatDemo:
             solution = solveReferenceProblem(
                 domainType=task['domain_type'],
                 heatSources=task['heat_sources'],
-                nX=24,
+                nX=48,
                 alpha=task['alpha'],
                 tFinal=task['t_final'],
                 method='implicit',
@@ -1076,7 +1076,7 @@ class InteractiveHeatDemo:
             domainName = self.getSanitisedDomainName()
 
             self.viz.plotHeatSources(self.heatSources, self.domain, save_name=f"sources_{domainName}")
-            pinnSolution = predictSolution3d(self.pinnModel, self.domain, self.tCurrent, nx=48, ny=48, nz=48, device='cpu')
+            pinnSolution = predictSolution3d(self.pinnModel, self.domain, self.tCurrent, nX=48, nY=48, nZ=48, device='cpu')
             self.viz.plotMatplotlibSlices(pinnSolution, title=f"PINN Solution - {domainName}", save_name=f"pinn_slices_{domainName}")
 
             self.logMessage("Generating volumetric plot...")
