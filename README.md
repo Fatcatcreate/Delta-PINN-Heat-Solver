@@ -15,6 +15,7 @@ The primary way to use this project is through the interactive GUI.
 3.  **Create and activate a Python virtual environment.**
 4.  **Install the dependencies:** `pip install -r requirements.txt`
 5.  **Run the interactive demo:** `python3 interactiveDemo.py`
+6.  **Explore:** You can use the preset domains or upload your own .obj files (more details below), and see both comparisions between numerical and PINN outputs but also your heat solution in 3d with clear graphs and visualisations
 
 ## Table of Contents
 - [1. Introduction](#1-introduction)
