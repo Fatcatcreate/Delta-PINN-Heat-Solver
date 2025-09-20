@@ -72,7 +72,7 @@ The architecture of the network, implemented in the `DeltaPINN3D` class, incorpo
 
 $$ \gamma(\mathbf{v}) = [\cos(2\pi \mathbf{B}\mathbf{v}), \sin(2\pi \mathbf{B}\mathbf{v})] $$
 
-    where $\mathbf{v} = [\mathbf{x}, t]$ and $\mathbf{B}$ is a matrix of fixed random frequencies drawn from a Gaussian distribution. This allows the network to learn high-frequency functions more effectively.
+where $\mathbf{v} = [\mathbf{x}, t]$ and $\mathbf{B}$ is a matrix of fixed random frequencies drawn from a Gaussian distribution. This allows the network to learn high-frequency functions more effectively.
 
 *   **Residual Blocks:** The network architecture can be configured to include residual connections, which have been shown to facilitate the training of very deep neural networks by improving gradient flow.
 
