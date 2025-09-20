@@ -1,4 +1,4 @@
-# Technical Report: Solving the 3D Heat Equation with Physics-Informed Neural Networks
+# Solving the 3D Heat Equation with Physics-Informed Neural Networks
 
 ## Abstract
 
