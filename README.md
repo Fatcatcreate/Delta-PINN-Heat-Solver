@@ -40,7 +40,9 @@ The focus of this project is the three dimensional heat equation. The main solve
 
 I am concerned with the solution of the transient 3D heat equation, which is a parabolic partial differential equation that describes the distribution of heat in a given region over time. The equation is given by:
 
-$$ \frac{\partial u}{\partial t} = \alpha \nabla^2 u + S(\mathbf{x}, t), \quad \forall (\mathbf{x}, t) \in \Omega \times (0, T) $$
+$$
+\frac{\partial u}{\partial t} = \alpha \nabla^2 u + S(\mathbf{x}, t), \quad \forall (\mathbf{x}, t) \in \Omega \times (0, T)
+$$
 
 where $u(\mathbf{x}, t)$ is the temperature at spatial coordinate $\mathbf{x} = (x, y, z)$ and time $t$, $\alpha \in \mathbb{R}^+$ is the thermal diffusivity, $\nabla^2$ is the Laplacian operator, and $S(\mathbf{x}, t)$ is a source term. The solution is sought in a spatial domain $\Omega \subset \mathbb{R}^3$ over the time interval $t \in [0, T]$.
 
@@ -48,7 +50,9 @@ The problem is well-posed when supplemented with an initial condition and approp
 
 **Initial Condition:** The initial temperature distribution is given by:
 
-$$ u(\mathbf{x}, 0) = u_0(\mathbf{x}), \quad \forall \mathbf{x} \in \Omega $$
+$$
+u(\mathbf{x}, 0) = u_0(\mathbf{x}), \quad \forall \mathbf{x} \in \Omega
+$$
 
 **Boundary Conditions:** I impose Dirichlet boundary conditions on the boundary of the domain $\partial\Omega$:
 
@@ -66,7 +70,7 @@ The architecture of the network, implemented in the `DeltaPINN3D` class, incorpo
 
 *   **Fourier Feature Embeddings:** To address the spectral bias of MLPs, which tend to learn low-frequency functions more easily than high-frequency functions, I employ Fourier Feature Embeddings. The input coordinates are first mapped to a higher-dimensional feature space using a sinusoidal mapping:
 
-    $$ \gamma(\mathbf{v}) = [\cos(2\pi \mathbf{B}\mathbf{v}), \sin(2\pi \mathbf{B}\mathbf{v})] $$
+$$ \gamma(\mathbf{v}) = [\cos(2\pi \mathbf{B}\mathbf{v}), \sin(2\pi \mathbf{B}\mathbf{v})] $$
 
     where $\mathbf{v} = [\mathbf{x}, t]$ and $\mathbf{B}$ is a matrix of fixed random frequencies drawn from a Gaussian distribution. This allows the network to learn high-frequency functions more effectively.
 
