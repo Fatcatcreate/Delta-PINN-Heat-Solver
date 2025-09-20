@@ -26,12 +26,10 @@ class FourierFeatureEmbedding(nn.Module):
     def __init__(self, inputDim: int, embedDim: int, scale: float = 1.0):
         super().__init__()
         self.embedDim = embedDim
-        # Fixed random frequencies
         self.register_buffer('B', torch.randn(inputDim, embedDim // 2) * scale)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x shape: [N, inputDim]
-        xProj = 2 * np.pi * x @ self.B  # [N, embedDim//2]
+        xProj = 2 * np.pi * x @ self.B
         return torch.cat([torch.sin(xProj), torch.cos(xProj)], dim=-1)
 
 class ResidualBlock(nn.Module):
@@ -60,15 +58,13 @@ class DeltaPINN3D(nn.Module):
         self.useFourier = useFourier
         self.useResidual = useResidual
         
-        # Input processing
         if useFourier:
-            self.fourierEmbed = FourierFeatureEmbedding(4, hiddenSize, fourierScale)  # (x,y,z,t)
+            self.fourierEmbed = FourierFeatureEmbedding(4, hiddenSize, fourierScale)
             inputDim = hiddenSize
         else:
             inputDim = 4
             self.inputLayer = nn.Linear(4, hiddenSize)
         
-        # Hidden layers
         layers = []
         for i in range(numLayers):
             if useResidual and i > 0:
@@ -79,10 +75,8 @@ class DeltaPINN3D(nn.Module):
         
         self.hiddenLayers = nn.ModuleList(layers)
         
-        # Output layer
         self.outputLayer = nn.Linear(hiddenSize, 1)
         
-        # Adaptive loss weights (trainable)
         self.logSigmaPde = nn.Parameter(torch.zeros(1))
         self.logSigmaBc = nn.Parameter(torch.zeros(1))
         self.logSigmaIc = nn.Parameter(torch.zeros(1))
@@ -100,7 +94,6 @@ class DeltaPINN3D(nn.Module):
         self.apply(initWeights)
     
     def forward(self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        # Normalise inputs to [-1, 1] for better convergence
         xNorm = 2 * x - 1  
         yNorm = 2 * y - 1
         zNorm = 2 * z - 1
@@ -108,19 +101,17 @@ class DeltaPINN3D(nn.Module):
         
         inputs = torch.cat([xNorm, yNorm, zNorm, tNorm], dim=1)
         
-        # Feature embedding
         if self.useFourier:
             h = self.fourierEmbed(inputs)
         else:
             h = torch.tanh(self.inputLayer(inputs))
         
-        # Hidden layers
         for layer in self.hiddenLayers:
             if isinstance(layer, ResidualBlock):
                 h = layer(h)
             elif isinstance(layer, nn.Linear):
                 h = layer(h)
-            else:  # Activation
+            else:
                 h = layer(h)
         
         return self.outputLayer(h)
@@ -142,7 +133,6 @@ def createMultiSourceIc(heatSources: List[Dict], X: np.ndarray, Y: np.ndarray, Z
         amplitude = source['amplitude']
         sigma = source.get('sigma', 0.05)
         
-        # Gaussian heat source
         ic += amplitude * np.exp(-((X - x0)**2 + (Y - y0)**2 + (Z - z0)**2) / (2 * sigma**2))
     
     return ic
@@ -151,15 +141,12 @@ def generateTrainingData3d(domain: Domain3D, nPde: int = 8000, nBc: int = 2000,
                              nIc: int = 2000, device: str = 'cpu') -> Tuple:
     """Generate 3D training data with domain constraints"""
     
-    # PDE interior points
     xPde, yPde, zPde = generateInteriorPoints(domain, nPde, device)
     tPde = torch.rand(len(xPde), 1, device=device, requires_grad=True)
     
-    # Boundary points
     xBc, yBc, zBc = generateBoundaryPoints(domain, nBc, device)
     tBc = torch.rand(len(xBc), 1, device=device, requires_grad=True)
     
-    # Initial condition points (t=0)
     xIc, yIc, zIc = generateInteriorPoints(domain, nIc, device)
     tIc = torch.zeros(len(xIc), 1, device=device, requires_grad=True)
     
@@ -170,7 +157,6 @@ def computePdeLoss3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor,
     """3D heat equation residual: ∂u/∂t = α(∂²u/∂x² + ∂²u/∂y² + ∂²u/∂z²)"""
     u = model(x, y, z, t)
     
-    # First derivatives
     uT = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), 
                              create_graph=True, retain_graph=True)[0]
     uX = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), 
@@ -180,7 +166,6 @@ def computePdeLoss3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor,
     uZ = torch.autograd.grad(u, z, grad_outputs=torch.ones_like(u), 
                              create_graph=True, retain_graph=True)[0]
     
-    # Second derivatives
     uXX = torch.autograd.grad(uX, x, grad_outputs=torch.ones_like(uX), 
                               create_graph=True, retain_graph=True)[0]
     uYY = torch.autograd.grad(uY, y, grad_outputs=torch.ones_like(uY), 
@@ -188,7 +173,6 @@ def computePdeLoss3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor,
     uZZ = torch.autograd.grad(uZ, z, grad_outputs=torch.ones_like(uZ), 
                               create_graph=True, retain_graph=True)[0]
     
-    # PDE residual
     laplacian = uXX + uYY + uZZ
     pdeResidual = uT - alpha * laplacian
     
@@ -205,12 +189,10 @@ def computeIcLoss3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor,
     """Initial condition loss with multi-source support"""
     uIc = model(x, y, z, t)
     
-    # Convert to numpy for IC computation
     xNp = x.detach().cpu().numpy().flatten()
     yNp = y.detach().cpu().numpy().flatten()
     zNp = z.detach().cpu().numpy().flatten()
     
-    # Create true IC values for each point
     uTrueList = []
     for i in range(len(xNp)):
         uVal = 0.0
@@ -219,7 +201,6 @@ def computeIcLoss3d(model: DeltaPINN3D, x: torch.Tensor, y: torch.Tensor,
             amplitude = source['amplitude']
             sigma = source.get('sigma', 0.05)
             
-            # Gaussian heat source
             uVal += amplitude * np.exp(-((xNp[i] - x0)**2 + (yNp[i] - y0)**2 + (zNp[i] - z0)**2) / (2 * sigma**2))
         
         uTrueList.append(uVal)
@@ -255,7 +236,6 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
     
     setSeed(args.seed)
     
-    # Device setup
     if args.device == 'auto':
         device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
     else:
@@ -263,7 +243,6 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
     
     print(f"Using device: {device}")
     
-    # Initialise model
     model = DeltaPINN3D(
         hiddenSize=args.hiddenSize,
         numLayers=args.numLayers,
@@ -272,19 +251,15 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
         useResidual=args.useResidual
     ).to(device)
     
-    # Optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=500, factor=0.5, min_lr=1e-6)
     
-    # Curriculum scheduler
     curriculum = CurriculumScheduler(warmupEpochs=args.warmupEpochs)
     
-    # Training data
     pdeData, bcData, icData = generateTrainingData3d(
         domain, args.nPde, args.nBc, args.nIc, device
     )
     
-    # Training history
     history = {
         'total_loss': [],
         'pde_loss': [],
@@ -303,42 +278,33 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
             model.train()
             optimizer.zero_grad()
             
-            # Get curriculum complexity
             complexity = curriculum.step()
             
-            # Compute losses
             pdeLoss = computePdeLoss3d(model, *pdeData, args.alpha)
             bcLoss = computeBcLoss3d(model, *bcData)
             icLoss = computeIcLoss3d(model, *icData, heatSources)
             
-            # Adaptive weights
             wPde, wBc, wIc = model.getAdaptiveWeights()
             
-            # Total loss with curriculum learning
             totalLoss = complexity * (wPde * pdeLoss + wBc * bcLoss + wIc * icLoss)
             
-            # Backward pass
             totalLoss.backward()
             
-            # Gradient clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
             optimizer.step()
             scheduler.step(totalLoss)
             
-            # Record history
             history['total_loss'].append(totalLoss.item())
             history['pde_loss'].append(pdeLoss.item())
             history['bc_loss'].append(bcLoss.item())
             history['ic_loss'].append(icLoss.item())
             history['adaptive_weights'].append([wPde, wBc, wIc])
             
-            # Save best model
             if totalLoss.item() < bestLoss:
                 bestLoss = totalLoss.item()
                 bestModelState = model.state_dict().copy()
             
-            # Update progress bar
             pbar.set_postfix({
                 'Total': f'{totalLoss.item():.2e}',
                 'PDE': f'{pdeLoss.item():.2e}',
@@ -350,7 +316,6 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
             if progressCallback:
                 progressCallback(epoch, args.epochs, totalLoss.item())
             
-            # Log progress
             if epoch % args.logInterval == 0:
                 print(f"\nEpoch {epoch}/{args.epochs}")
                 print(f"Total Loss: {totalLoss.item():.6e}")
@@ -358,14 +323,12 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
                 print(f"BC Loss: {bcLoss.item():.6e}")
                 print(f"IC Loss: {icLoss.item():.6e}")
                 print(f"Adaptive Weights: PDE={wPde:.3f}, BC={wBc:.3f}, IC={wIc:.3f}")
-                print(f"Learning Rate: {optimizer.param_groups[0]["lr"]:.2e}")
+                print(f"Learning Rate: {optimizer.param_groups[0]['lr']:.2e}")
     
-    # Load best model
     if bestModelState is not None:
         model.load_state_dict(bestModelState)
         print(f"Loaded best model with loss: {bestLoss:.6e}")
     
-    # Save model and history
     os.makedirs(args.saveDir, exist_ok=True)
     
     domain_filename = os.path.basename(domain.name)
@@ -383,7 +346,6 @@ def trainDeltaPinn3d(args, domain: Domain3D, heatSources: List[Dict], progressCa
         modelPath,
     )
     
-    # Save training history to CSV
     historyPath = os.path.join(args.saveDir, f"training_history_{domainNameSanitised.lower()}.csv")
     with open(historyPath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
@@ -405,7 +367,6 @@ def loadTrainedModel(modelPath: str, device: str = 'cpu') -> Tuple[DeltaPINN3D, 
     """Load trained model and metadata"""
     checkpoint = torch.load(modelPath, map_location=device)
     
-    # Recreate model with saved args
     argsDict = checkpoint['args']
     model = DeltaPINN3D(
         hiddenSize=argsDict['hidden_size'],
@@ -425,31 +386,25 @@ def predictSolution3d(model: DeltaPINN3D, domain: Domain3D,
                        device: str = 'cpu') -> Dict[str, np.ndarray]:
     """Predict solution on regular grid at given time"""
     
-    # Generate grid
     gridData = domain.generateGrid(nX, nY, nZ)
     X, Y, Z, mask = gridData['X'], gridData['Y'], gridData['Z'], gridData['mask']
     
-    # Flatten for network input
     xFlat = X.flatten()
     yFlat = Y.flatten()
     zFlat = Z.flatten()
     tFlat = np.full_like(xFlat, tEval)
     
-    # Convert to tensors
     xTensor = torch.tensor(xFlat, dtype=torch.float32, device=device).unsqueeze(1)
     yTensor = torch.tensor(yFlat, dtype=torch.float32, device=device).unsqueeze(1)
     zTensor = torch.tensor(zFlat, dtype=torch.float32, device=device).unsqueeze(1)
     tTensor = torch.tensor(tFlat, dtype=torch.float32, device=device).unsqueeze(1)
     
-    # Predict
     model.eval()
     with torch.no_grad():
         uPred = model(xTensor, yTensor, zTensor, tTensor)
     
-    # Reshape back to grid
     uPredGrid = uPred.cpu().numpy().reshape(X.shape)
     
-    # Apply domain mask (set exterior to NaN)
     uPredGrid[~mask] = np.nan
     
     return {
@@ -467,31 +422,26 @@ def predictSolution3d(model: DeltaPINN3D, domain: Domain3D,
 def main():
     parser = argparse.ArgumentParser(description="Train 3D Delta-PINN for heat diffusion")
     
-    # Model parameters
     parser.add_argument('--hidden_size', type=int, default=128, help='Hidden layer size')
     parser.add_argument('--num_layers', type=int, default=6, help='Number of hidden layers')
     parser.add_argument('--use_fourier', action='store_true', default=True, help='Use Fourier features')
     parser.add_argument('--fourier_scale', type=float, default=1.0, help='Fourier feature scale')
     parser.add_argument('--useResidual', action='store_true', default=True, help='Use residual connections')
     
-    # Training parameters
     parser.add_argument('--epochs', type=int, default=5000, help='Training epochs')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
     parser.add_argument('--warmup_epochs', type=int, default=1000, help='Curriculum warmup epochs')
     parser.add_argument('--alpha', type=float, default=0.01, help='Thermal diffusivity')
     
-    # Data parameters
     parser.add_argument('--n_pde', type=int, default=8000, help='Number of PDE collocation points')
     parser.add_argument('--n_bc', type=int, default=2000, help='Number of boundary points')
     parser.add_argument('--n_ic', type=int, default=2000, help='Number of initial condition points')
     
-    # Domain and sources
     parser.add_argument('--domain', type=str, default='sphere', 
                        choices=['cube', 'sphere', 'lshape', 'torus', 'cylinder_holes'],
                        help='Domain shape')
     parser.add_argument('--numSources', type=int, default=2, help='Number of heat sources')
     
-    # System parameters
     parser.add_argument('--device', type=str, default='auto', help='Device: cpu, cuda, mps, or auto')
     parser.add_argument('--seed', type=int, default=1337, help='Random seed')
     parser.add_argument('--saveDir', type=str, default='./models', help='Save directory')
@@ -505,11 +455,9 @@ def main():
     print(f"Architecture: {args.num_layers} layers, {args.hidden_size} hidden units")
     print(f"Training: {args.epochs} epochs, lr={args.lr}")
     
-    # Create domain
     domain = DomainFactory.create_domain(args.domain)
     print(f"Domain bounds: {domain.bounds()}")
     
-    # Create heat sources
     np.random.seed(args.seed)
     bounds = domain.bounds()
     heatSources = []
@@ -519,7 +467,6 @@ def main():
         yRange = bounds[1] 
         zRange = bounds[2]
         
-        # Random position within domain bounds (with margin)
         xPos = np.random.uniform(xRange[0] + 0.1, xRange[1] - 0.1)
         yPos = np.random.uniform(yRange[0] + 0.1, yRange[1] - 0.1)
         zPos = np.random.uniform(zRange[0] + 0.1, zRange[1] - 0.1)
@@ -536,7 +483,6 @@ def main():
         print(f"  {i+1}: pos=({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}), "
               f"amp={source['amplitude']:.3f}, \u03c3={source['sigma']:.3f}")
     
-    # Train model
     model = trainDeltaPinn3d(args, domain, heatSources)
     
     print("\n=== Training Complete ===")
@@ -545,3 +491,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

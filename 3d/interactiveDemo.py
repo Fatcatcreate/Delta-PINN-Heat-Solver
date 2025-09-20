@@ -47,15 +47,12 @@ class InteractiveHeatDemo:
         self.isRunning = False
         self.isTraining = False
         
-        # Solution data
         self.pinnModel = None
         self.numericalData = None
         self.currentPinnSolution = None
         
-        # Visualisation
         self.viz = HeatVisualisation3D('./demo_output')
         
-        # Threading
         self.taskQueue = queue.Queue()
         self.resultQueue = queue.Queue()
         
@@ -74,7 +71,6 @@ class InteractiveHeatDemo:
         self.root.geometry("1200x900")
         self.root.resizable(True, True)
         
-        # Create main frames
         controlContainer = ttk.Frame(self.root, width=300)
         controlContainer.pack(side='left', fill='y', padx=10, pady=10)
 
@@ -116,21 +112,17 @@ class InteractiveHeatDemo:
         self.setupControls(scrollableFrame)
         self.setupVisualisation(vizFrame)
         
-        # Start background worker
         self.workerThread = threading.Thread(target=self.backgroundWorker, daemon=True)
         self.workerThread.start()
         
-        # Start GUI update timer
         self.root.after(100, self.updateGui)
     
     def setupControls(self, parent):
         """Setup control panel"""
         
-        # Title
         titleLabel = ttk.Label(parent, text="3D Heat Diffusion Demo", font=('Arial', 16, 'bold'))
         titleLabel.pack(pady=(0, 20))
         
-        # Domain selection
         domainFrame = ttk.LabelFrame(parent, text="Domain Configuration")
         domainFrame.pack(fill='x', pady=(0, 10))
         
@@ -155,16 +147,9 @@ class InteractiveHeatDemo:
         resolutionScale.bind('<Motion>', lambda e: self.resolutionLabel.config(text=f"Resolution = {self.resolutionVar.get()}"))
         self.resolutionLabel.pack(anchor='w')
 
-        # Heat source controls
         sourceFrame = ttk.LabelFrame(parent, text="Heat Sources")
         sourceFrame.pack(fill='x', pady=(0, 10))
         
-        # Add source button
-        # addSourceBtn = ttk.Button(sourceFrame, text="Add Random Source", 
-        #                            command=self.addRandomSource)
-        # addSourceBtn.pack(fill='x', pady=(0, 5))
-        
-        # Manual source entry
         manualFrame = ttk.Frame(sourceFrame)
         manualFrame.pack(fill='x', pady=(0, 5))
         
@@ -193,12 +178,10 @@ class InteractiveHeatDemo:
                                    command=self.addManualSource)
         addManualBtn.pack(fill='x', pady=(5, 0))
         
-        # Source list
         ttk.Label(sourceFrame, text="Current Sources:").pack(anchor='w', pady=(10, 0))
         self.sourceListbox = tk.Listbox(sourceFrame, height=4)
         self.sourceListbox.pack(fill='x', pady=(0, 5))
         
-        # Remove source button
         removeSourceBtn = ttk.Button(sourceFrame, text="Remove Selected", 
                                       command=self.removeSource)
         removeSourceBtn.pack(fill='x', pady=(0, 5))
@@ -207,7 +190,6 @@ class InteractiveHeatDemo:
                                       command=self.clearSources)
         clearSourcesBtn.pack(fill='x')
         
-        # Simulation parameters
         simFrame = ttk.LabelFrame(parent, text="Simulation Parameters")
         simFrame.pack(fill='x', pady=(0, 10))
         
@@ -240,7 +222,6 @@ class InteractiveHeatDemo:
         smoothingScale.bind('<Motion>', self.onSmoothingChange)
         self.smoothingLabel.pack(anchor='w')
         
-        # Time control
         timeFrame = ttk.LabelFrame(parent, text="Time Control")
         timeFrame.pack(fill='x', pady=(0, 10))
         
@@ -253,7 +234,6 @@ class InteractiveHeatDemo:
         self.timeLabel = ttk.Label(timeFrame, text=f"t = {self.tCurrent:.3f}")
         self.timeLabel.pack(anchor='w')
         
-        # Control buttons
         buttonFrame = ttk.LabelFrame(parent, text="Simulation Control")
         buttonFrame.pack(fill='x', pady=(0, 10))
         
@@ -285,7 +265,6 @@ class InteractiveHeatDemo:
                                              command=self.showSurface3dPlot, state='disabled')
         self.showSurface3dBtn.pack(fill='x', pady=(0, 5))
 
-        # Model Management & Full Visualisation
         manageFrame = ttk.LabelFrame(parent, text="Model Management & Visualisation")
         manageFrame.pack(fill='x', pady=(0, 10))
 
@@ -301,7 +280,6 @@ class InteractiveHeatDemo:
                                     command=self.generateAllVisualisations, state='disabled')
         self.genVizBtn.pack(fill='x', pady=(0, 5))
         
-        # Export buttons
         exportFrame = ttk.LabelFrame(parent, text="Export")
         exportFrame.pack(fill='x', pady=(0, 10))
         
@@ -312,7 +290,6 @@ class InteractiveHeatDemo:
         ttk.Button(exportFrame, text="Export Visualisation", 
                   command=self.exportVisualisation).pack(fill='x')
         
-        # Status
         statusFrame = ttk.LabelFrame(parent, text="Status")
         statusFrame.pack(fill='both', expand=True)
         
@@ -333,7 +310,6 @@ class InteractiveHeatDemo:
     def setupVisualisation(self, parent):
         """Setup visualisation panel with matplotlib"""
         
-        # Create matplotlib figure
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
         
@@ -341,29 +317,22 @@ class InteractiveHeatDemo:
         self.canvas = FigureCanvasTkAgg(self.fig, parent)
         self.canvas.get_tk_widget().pack(fill='both', expand=True)
         
-        # Navigation toolbar
         toolbar = NavigationToolbar2Tk(self.canvas, parent)
         toolbar.update()
         
-        # Initialise plots
         self.updateVisualisation()
         
-        # Mouse interaction for adding sources
         self.canvas.mpl_connect('button_press_event', self.onCanvasClick)
     
     def onCanvasClick(self, event):
         """Handle mouse clicks on visualisation for adding heat sources"""
-        if event.inaxes and event.button == 1 and event.dblclick:  # Double-click
-            # Get click coordinates
+        if event.inaxes and event.button == 1 and event.dblclick:
             xClick, yClick = event.xdata, event.ydata
             
-            # Estimate z coordinate (middle of domain)
             bounds = self.domain.bounds()
             zClick = (bounds[2][0] + bounds[2][1]) / 2
             
-            # Check if point is inside domain
             if self.domain.isInside(np.array([xClick]), np.array([yClick]), np.array([zClick]))[0]:
-                # Add heat source
                 self.heatSources.append({
                     'position': (xClick, yClick, zClick),
                     'amplitude': 1.0,
@@ -384,7 +353,6 @@ class InteractiveHeatDemo:
             self.domain = DomainFactory.createDomain(self.domainType)
             self.logMessage(f"Changed domain to: {self.domainType}")
             
-            # Clear solutions
             self.pinnModel = None
             self.numericalData = None
             self.compareBtn.config(state='disabled')
@@ -423,7 +391,6 @@ class InteractiveHeatDemo:
         self.alpha = self.alphaVar.get()
         self.alphaLabel.config(text=f"α = {self.alpha:.3f}")
         
-        # Invalidate numerical solution
         self.numericalData = None
         self.compareBtn.config(state='disabled')
         self.animateBtn.config(state='disabled')
@@ -434,7 +401,6 @@ class InteractiveHeatDemo:
         self.tMaxLabel.config(text=f"t_max = {self.tMax:.1f}")
         self.timeScale.config(to=self.tMax)
         
-        # Invalidate solutions
         self.numericalData = None
         self.compareBtn.config(state='disabled')
         self.animateBtn.config(state='disabled')
@@ -444,7 +410,6 @@ class InteractiveHeatDemo:
         self.tCurrent = self.tVar.get()
         self.timeLabel.config(text=f"t = {self.tCurrent:.3f}")
         
-        # Update visualisation if solutions exist
         if self.pinnModel or self.numericalData:
             self.updateSolutionVisualisation()
 
@@ -456,12 +421,10 @@ class InteractiveHeatDemo:
         """Add randomly positioned heat source"""
         bounds = self.domain.bounds()
         
-        # Generate random position within domain bounds (with margin)
         xPos = np.random.uniform(bounds[0][0] + 0.1, bounds[0][1] - 0.1)
         yPos = np.random.uniform(bounds[1][0] + 0.1, bounds[1][1] - 0.1)
         zPos = np.random.uniform(bounds[2][0] + 0.1, bounds[2][1] - 0.1)
         
-        # Verify position is inside domain
         attempts = 0
         while not self.domain.isInside(np.array([xPos]), np.array([yPos]), np.array([zPos]))[0] and attempts < 20:
             xPos = np.random.uniform(bounds[0][0] + 0.1, bounds[0][1] - 0.1)
@@ -491,7 +454,6 @@ class InteractiveHeatDemo:
             zPos = float(self.zEntry.get())
             amplitude = float(self.ampEntry.get())
             
-            # Check if position is inside domain
             if self.domain.isInside(np.array([xPos]), np.array([yPos]), np.array([zPos]))[0]:
                 self.heatSources.append({
                     'position': (xPos, yPos, zPos),
@@ -541,7 +503,6 @@ class InteractiveHeatDemo:
         
         ax = self.fig.add_subplot(111)
         
-        # Plot domain boundary (2D projection)
         bounds = self.domain.bounds()
         xTest = np.linspace(bounds[0][0], bounds[0][1], 100)
         yTest = np.linspace(bounds[1][0], bounds[1][1], 100)
@@ -553,11 +514,8 @@ class InteractiveHeatDemo:
         ax.contourf(XTest, YTest, insideMask.astype(float), levels=[0.5, 1.5], colours=['lightblue'], alpha=0.3)
         
         if not self.heatSources:
-            # Show empty domain with instructions
             ax.set_title(f"Domain: {self.getSanitisedDomainName()} (Double-click to add heat source)")
         else:
-            # Show domain with heat sources
-            # Plot heat sources
             colours = ['red', 'orange', 'yellow', 'purple', 'green', 'cyan', 'magenta']
             for i, source in enumerate(self.heatSources):
                 x0, y0, z0 = source['position']
@@ -568,9 +526,8 @@ class InteractiveHeatDemo:
                           s=200 * amplitude, alpha=0.8, 
                           label=f'Source {i+1}')
                 
-                # Influence circle
                 circle = patches.Circle((x0, y0), 3*sigma, fill=False, 
-                                      colour=colours[i % len(colours)], alpha=0.5, linestyle='--')
+                                      color=colours[i % len(colours)], alpha=0.5, linestyle='--')
                 ax.add_patch(circle)
             
             ax.set_title(f'Heat Sources - {self.getSanitisedDomainName()}')
@@ -590,31 +547,26 @@ class InteractiveHeatDemo:
         
         self.fig.clear()
         
-        # Create subplot layout
         if self.pinnModel and self.numericalData:
-            # Comparison view
             ax1 = self.fig.add_subplot(131)
             ax2 = self.fig.add_subplot(132)
             ax3 = self.fig.add_subplot(133)
             axes = [ax1, ax2, ax3]
             titles = ['PINN Solution', 'Numerical Solution', 'Absolute Error']
         elif self.pinnModel:
-            # PINN only
             ax1 = self.fig.add_subplot(111)
             axes = [ax1]
             titles = ['PINN Solution']
         else:
-            # Numerical only
             ax1 = self.fig.add_subplot(111)
             axes = [ax1]
             titles = ['Numerical Solution']
         
-        # Get solutions at current time
         solutions = []
         
         if self.pinnModel:
             try:
-                device = 'cpu'  # Force CPU for GUI responsiveness
+                device = 'cpu'
                 pinnSol = predictSolution3d(self.pinnModel, self.domain, self.tCurrent,
                                              nx=32, ny=32, nz=32, device=device)
                 solutions.append(pinnSol['u'])
@@ -623,30 +575,25 @@ class InteractiveHeatDemo:
                 return
         
         if self.numericalData:
-            # Find closest time
             timeIdx = np.argmin(np.abs(self.numericalData['times'] - self.tCurrent))
             numSol = self.numericalData['solutions'][timeIdx]
             
-            # Convert to grid
             if len(numSol.shape) == 1:
-                gridShape = (32, 32, 32)  # Match PINN resolution
+                gridShape = (32, 32, 32)
                 X = np.linspace(0, 1, 32)
                 Y = np.linspace(0, 1, 32)
                 Z = np.linspace(0, 1, 32)
                 XX, YY, ZZ = np.meshgrid(X, Y, Z, indexing='ij')
                 
                 numSolGrid = np.full(gridShape, np.nan)
-                # Interpolate or use available data
                 if 'interiorIndices' in self.numericalData:
-                    # Map to new grid (simplified)
                     interiorIdx = self.numericalData['interiorIndices']
                     for i, val in enumerate(numSol):
                         if i < len(interiorIdx[0]):
                             ii, jj, kk = interiorIdx[0][i], interiorIdx[1][i], interiorIdx[2][i]
-                            # Scale indices to match new grid
                             scaleX = (gridShape[0] - 1) / (self.numericalData['grid_shape'][0] - 1)
                             scaleY = (gridShape[1] - 1) / (self.numericalData['grid_shape'][1] - 1)
-                            scaleZ = (gridShape[2] - 1) / (self.numericalData['grid_shape'][2] - 1)
+                            scaleZ = (gridShape[2][0] - 1) / (self.numericalData['grid_shape'][2] - 1)
                             
                             newI = int(ii * scaleX)
                             newJ = int(jj * scaleY)
@@ -661,19 +608,16 @@ class InteractiveHeatDemo:
             else:
                 solutions.append(numSol)
         
-        # Plot solutions
         for i, (ax, title, sol) in enumerate(zip(axes, titles, solutions)):
-            if i == 2 and len(solutions) >= 2:  # Error plot
+            if i == 2 and len(solutions) >= 2:
                 sol = np.abs(solutions[0] - solutions[1])
                 cmap = 'Reds'
             else:
                 cmap = 'hot'
             
-            # Plot middle XY slice
             midZ = sol.shape[2] // 2
             sliceData = sol[:, :, midZ]
             
-            # Create coordinate arrays
             xCoords = np.linspace(0, 1, sol.shape[0])
             yCoords = np.linspace(0, 1, sol.shape[1])
             
@@ -683,8 +627,7 @@ class InteractiveHeatDemo:
             ax.set_ylabel('Y')
             ax.set_aspect('equal')
             
-            # Add colourbar
-            self.fig.colourbar(im, ax=ax, shrink=0.8)
+            self.fig.colorbar(im, ax=ax, shrink=0.8)
         
         self.fig.tight_layout()
         self.canvas.draw()
@@ -759,7 +702,6 @@ class InteractiveHeatDemo:
         self.logMessage("Starting numerical solution...")
         self.solveBtn.config(state='disabled', text='Solving...')
         
-        # Add numerical task to queue
         self.taskQueue.put({
             'type': 'solve_numerical',
             'domain_type': self.domainType,
@@ -776,17 +718,13 @@ class InteractiveHeatDemo:
         
         self.logMessage("Creating detailed comparison...")
         
-        # Use visualisation module for detailed comparison
         try:
-            # Create temporary PINN solution data
             device = 'cpu'
             pinnData = predictSolution3d(self.pinnModel, self.domain, self.tCurrent,
                                           nX=48, nY=48, nZ=48, device=device)
             
-            # Find closest numerical time
             timeIdx = np.argmin(np.abs(self.numericalData['times'] - self.tCurrent))
             
-            # Create comparison plot
             self.viz.createComparisonPlot(pinnData, self.numericalData, timeIdx,
                                           saveName=f"comparison_{self.getSanitisedDomainName()}")
             
@@ -804,7 +742,6 @@ class InteractiveHeatDemo:
         self.logMessage("Generating interactive 3D plot with volumetric rendering...")
 
         try:
-            # Generate plot
             saveName = f"interactive_3d_{self.getSanitisedDomainName()}"
             fig = self.viz.plotVolumetricRendering(self.pinnModel, self.domain, 
                                                      tMax=self.tMax, timeSteps=20,
@@ -812,7 +749,6 @@ class InteractiveHeatDemo:
                                                      saveName=saveName)
 
             if fig:
-                # Open in web browser
                 import webbrowser
                 import os
                 outputPath = os.path.join(self.viz.saveDir, f"{saveName}.html")
@@ -833,10 +769,8 @@ class InteractiveHeatDemo:
         self.logMessage("Generating interactive 3D surface plot...")
 
         try:
-            # Get smoothing value
             smoothingVal = self.smoothingVar.get()
 
-            # Generate plot
             saveName = f"interactive_3d_surface_{self.getSanitisedDomainName()}"
             fig = self.viz.plotSurfaceHeatmap(self.pinnModel, self.domain, 
                                                   tMax=self.tMax, timeSteps=20,
@@ -844,7 +778,6 @@ class InteractiveHeatDemo:
                                                   saveName=saveName, smoothing=smoothingVal)
 
             if fig:
-                # Open in web browser
                 import webbrowser
                 import os
                 outputPath = os.path.join(self.viz.saveDir, f"{saveName}.html")
@@ -889,7 +822,6 @@ class InteractiveHeatDemo:
                     self.domain = DomainFactory.createDomain(self.domainType)
                     self.logMessage(f"Changed domain to: {self.domainType}")
                     
-                    # Clear solutions
                     self.pinnModel = None
                     self.numericalData = None
                     self.compareBtn.config(state='disabled')
@@ -905,10 +837,8 @@ class InteractiveHeatDemo:
     def executeTraining(self, task):
         """Execute PINN training based on quality setting"""
         try:
-            # Import here to avoid GUI thread issues
             import argparse
             
-            # Create minimal args for training
             class Args:
                 def __init__(self):
                     quality = task.get('quality', 'quick')
@@ -921,7 +851,7 @@ class InteractiveHeatDemo:
                         self.nBc = 2500
                         self.nIc = 2500
                         self.logInterval = 500
-                    else: # Quick (default)
+                    else:
                         self.hiddenSize = 64
                         self.numLayers = 4
                         self.epochs = 1000
@@ -936,16 +866,14 @@ class InteractiveHeatDemo:
                     self.lr = 1e-3
                     self.warmupEpochs = 200
                     self.alpha = task['alpha']
-                    self.device = 'cpu'  # Force CPU for stability
+                    self.device = 'cpu'
                     self.seed = 1337
                     self.saveDir = './demo_output'
             
             args = Args()
             
-            # Create domain
             domain = DomainFactory.createDomain(task['domain_type'])
             
-            # Train model
             model = trainDeltaPinn3d(args, domain, task['heat_sources'], progressCallback=task.get('progress_callback'))
             
             self.resultQueue.put({
@@ -963,11 +891,10 @@ class InteractiveHeatDemo:
     def executeNumericalSolve(self, task):
         """Execute numerical solution"""
         try:
-            # Solve numerical problem
             solution = solveReferenceProblem(
                 domainType=task['domain_type'],
                 heatSources=task['heat_sources'],
-                nX=24,  # Smaller grid for speed
+                nX=24,
                 alpha=task['alpha'],
                 tFinal=task['t_final'],
                 method='implicit',
@@ -1017,7 +944,6 @@ class InteractiveHeatDemo:
                 with open(filename, 'r') as f:
                     config = json.load(f)
                 
-                # Apply configuration
                 self.domainType = config.get('domain_type', 'sphere')
                 self.domainVar.set(self.domainType)
                 self.domain = DomainFactory.createDomain(self.domainType)
@@ -1026,7 +952,6 @@ class InteractiveHeatDemo:
                 self.alpha = config.get('alpha', 0.01)
                 self.tMax = config.get('t_max', 1.0)
                 
-                # Update GUI
                 self.alphaVar.set(self.alpha)
                 self.tMaxVar.set(self.tMax)
                 self.alphaLabel.config(text=f"α = {self.alpha:.3f}")
@@ -1066,19 +991,16 @@ class InteractiveHeatDemo:
 
         try:
             self.logMessage(f"Loading model from {filename}...")
-            # We need to import the load function
             from deltaPinn3d import loadTrainedModel
             model, checkpoint = loadTrainedModel(filename, device='cpu')
 
             self.pinnModel = model
             
-            # Restore state from the loaded model
             self.domainType = checkpoint.get('domain_name', 'sphere')
             self.heatSources = checkpoint.get('heat_sources', [])
             args = checkpoint.get('args', {})
             self.alpha = args.get('alpha', 0.01)
 
-            # Update GUI to reflect loaded state
             self.domainVar.set(self.domainType)
             self.domain = DomainFactory.createDomain(self.domainType)
             self.alphaVar.set(self.alpha)
@@ -1087,7 +1009,6 @@ class InteractiveHeatDemo:
             self.updateVisualisation()
             self.updateSolutionVisualisation()
 
-            # Enable buttons
             self.saveBtn.config(state='normal')
             self.genVizBtn.config(state='normal')
             self.show3dBtn.config(state='normal')
@@ -1121,8 +1042,7 @@ class InteractiveHeatDemo:
 
         try:
             self.logMessage(f"Saving model to {filename}...")
-            # We need to create an args dict to save with the model
-            from deltaPinn3d import ResidualBlock # Import for isinstance check
+            from deltaPinn3d import ResidualBlock
             argsToSave = {
                 'hidden_size': self.pinnModel.hidden_layers[0].in_features if not self.pinnModel.use_fourier else self.pinnModel.fourier_embed.embed_dim,
                 'num_layers': len([l for l in self.pinnModel.hidden_layers if isinstance(l, (torch.nn.Linear, ResidualBlock))]),
@@ -1133,7 +1053,7 @@ class InteractiveHeatDemo:
             }
             torch.save({
                 'model_state_dict': self.pinnModel.state_dict(),
-                'history': None,  # No training history for demo models
+                'history': None,
                 'args': argsToSave,
                 'domain_name': self.domain.name,
                 'heat_sources': self.heatSources
@@ -1155,12 +1075,10 @@ class InteractiveHeatDemo:
         try:
             domainName = self.getSanitisedDomainName()
 
-            # --- Static Plots ---
             self.viz.plotHeatSources(self.heatSources, self.domain, save_name=f"sources_{domainName}")
             pinnSolution = predictSolution3d(self.pinnModel, self.domain, self.tCurrent, nx=48, ny=48, nz=48, device='cpu')
             self.viz.plotMatplotlibSlices(pinnSolution, title=f"PINN Solution - {domainName}", save_name=f"pinn_slices_{domainName}")
 
-            # --- Interactive HTML Plots ---
             self.logMessage("Generating volumetric plot...")
             _, volPath = self.viz.plotVolumetricRendering(self.pinnModel, self.domain, tMax=self.tMax, saveName=f"volumetric_{domainName}")
             if volPath: htmlFilesToOpen.append(volPath)
@@ -1181,7 +1099,6 @@ class InteractiveHeatDemo:
             messagebox.showerror("Error", f"An error occurred: {e}")
             return
 
-        # Open the generated HTML files
         import webbrowser
         import os
         for path in htmlFilesToOpen:
@@ -1201,7 +1118,6 @@ class InteractiveHeatDemo:
                     self.isTraining = False
                     self.logMessage(f"PINN training ({result['quality']}) completed successfully!")
                     
-                    # Enable buttons that require a model
                     self.saveBtn.config(state='normal')
                     self.genVizBtn.config(state='normal')
                     self.show3dBtn.config(state='normal')
@@ -1237,7 +1153,6 @@ class InteractiveHeatDemo:
                     self.domainVar.set(self.domainType)
                     self.logMessage(f"Changed domain to: {self.domainType}")
                     
-                    # Clear solutions
                     self.pinnModel = None
                     self.numericalData = None
                     self.compareBtn.config(state='disabled')
@@ -1251,7 +1166,6 @@ class InteractiveHeatDemo:
         except queue.Empty:
             pass
         
-        # Schedule next update
         self.root.after(100, self.updateGui)
     
     def logMessage(self, message):
@@ -1268,7 +1182,7 @@ class InteractiveHeatDemo:
         if totalEpochs > 0:
             progress = int((epoch / totalEpochs) * 100)
             self.progressBar['value'] = progress
-            if epoch % 100 == 0: # Log every 100 epochs
+            if epoch % 100 == 0:
                 self.logMessage(f"Training epoch {epoch}/{totalEpochs}, Loss: {loss:.4e}")
         self.root.update_idletasks()
     
@@ -1291,10 +1205,8 @@ def main():
     import os
     import sys
     
-    # Create output directory
     os.makedirs('./demo_output', exist_ok=True)
     
-    # Check dependencies
     missingDeps = []
     try:
         import torch

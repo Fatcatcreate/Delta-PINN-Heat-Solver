@@ -187,7 +187,7 @@ By adhering to these requirements, you can accurately simulate heat diffusion in
 
 ## 4. Usage and Reproducibility
 
-To run the interactive demo and explore the codebase:
+The primary way to use this project is through the interactive GUI.
 
 1.  **Clone the repository.**
 2.  **Navigate to the `3d/` directory.**
@@ -195,6 +195,98 @@ To run the interactive demo and explore the codebase:
 4.  **Install the dependencies:** `pip install -r requirements.txt`
 5.  **Run the interactive demo:** `python3 interactiveDemo.py`
 
+### The Interactive Demo
+
+Once launched, the interactive demo provides a comprehensive GUI for running simulations and visualizing results. The layout consists of a control panel on the left and a visualization panel on the right.
+
+**Key Controls:**
+
+*   **Domain Configuration:**
+    *   **Domain Shape:** Select from a list of predefined shapes (e.g., `sphere`, `cube`).
+    *   **Load .obj File:** Load a custom geometry from a `.obj` or `.npy` file.
+
+*   **Heat Sources:**
+    *   **Add Sources:** Double-click on the 2D visualization plot to add a heat source at that location.
+    *   **Manual Entry:** Manually specify the position and amplitude of a heat source.
+    *   **Add/Remove/Clear:** Manage the list of current heat sources.
+
+*   **Simulation Parameters:**
+    *   **Thermal Diffusivity (α):** Adjust the `alpha` parameter for the heat equation.
+    *   **Max Time:** Set the total simulation time `t_max`.
+
+*   **Simulation Control:**
+    *   **Train PINN:** Train the Physics-Informed Neural Network on the current configuration.
+    *   **Solve Numerical:** Run the finite difference solver to generate a reference solution.
+    *   **Compare Solutions:** Generate a side-by-side plot comparing the PINN and numerical results.
+    *   **Animate:** Create a GIF of the simulation over time.
+    *   **Show 3D Plot / Show Surface 3D Plot:** Open interactive 3D visualizations in your web browser.
+
+*   **Model Management & Visualisation:**
+    *   **Load/Save Model:** Load a pre-trained PINN model or save the currently trained one.
+    *   **Generate All Visualisations:** A one-click button to generate and save all possible static and interactive plots to the `demo_output` directory.
+
+From the interactive demo, you can configure the domain, add heat sources, train the PINN model, solve for the numerical reference solution, and generate all visualizations.
+
 ## 5. Conclusion and Future Work
 
 This project provides a comprehensive framework for solving the 3D transient heat equation using Physics-Informed Neural Networks. The results demonstrate that PINNs are a viable alternative to traditional numerical methods for solving PDEs, especially for problems with complex geometries. Future work could include extending the framework to other types of PDEs, implementing more advanced PINN architectures, and exploring the use of PINNs for inverse problems.
+
+## Project Structure
+
+```
+project/
+├── 3d/
+│   ├── deltaPinn3d.py         # Main PINN training script
+│   ├── numericalSolution.py   # Finite difference solver
+│   ├── visualisation.py       # Plotting and animation functions
+│   ├── interactiveDemo.py     # Interactive Tkinter app
+│   ├── domainShapes.py        # SDF domain definitions
+│   ├── convertObj.py          # .obj to SDF conversion
+│   └── requirements.txt       # Dependencies
+├── README.md                  # This file
+└── models/                    # Trained models (.pt files)
+```
+
+## Advanced Usage: Command Line Options
+
+While the interactive demo is the recommended workflow, the individual scripts can be run from the command line for advanced usage or scripting.
+
+### `deltaPinn3d.py`
+
+```bash
+python3 3d/deltaPinn3d.py \
+    --hiddenSize 128 \
+    --numLayers 6 \
+    --epochs 5000 \
+    --lr 1e-3 \
+    --domain sphere \
+    --numSources 2
+```
+
+### `numericalSolution.py`
+
+```bash
+python3 3d/numericalSolution.py \
+    --domain sphere \
+    --nx 32 \
+    --t_final 1.0
+```
+
+## Troubleshooting
+
+**Model not converging?**
+- Reduce the learning rate.
+- Increase the number of training epochs.
+- Adjust the weights of the loss terms.
+
+**Out of memory?**
+- Reduce the grid resolution (`--nx`).
+- Use a smaller network architecture.
+
+**Slow training?**
+- Use a smaller grid or fewer epochs for quick tests.
+- If you have a supported GPU, you can modify the scripts to use it.
+
+## License
+
+This project is licensed under the MIT License.

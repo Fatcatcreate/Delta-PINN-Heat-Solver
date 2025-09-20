@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation, PillowWriter
 import matplotlib.patches as patches
-from matplotlib.colours import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap
 import os
 import pickle
 import torch
@@ -181,7 +181,7 @@ class HeatVisualisation3D:
         axes[0,0].set_title(f'XY Slice (Z = {Z[midZ,0,midZ]:.2f})')
         axes[0,0].set_xlabel('X')
         axes[0,0].set_ylabel('Y')
-        plt.colourbar(im1, ax=axes[0,0])
+        plt.colorbar(im1, ax=axes[0,0])
         
         # XZ slice (middle Y) 
         im2 = axes[0,1].contourf(X[:,midY,:], Z[:,midY,:], u[:,midY,:],
@@ -189,7 +189,7 @@ class HeatVisualisation3D:
         axes[0,1].set_title(f'XZ Slice (Y = {Y[0,midY,0]:.2f})')
         axes[0,1].set_xlabel('X')
         axes[0,1].set_ylabel('Z')
-        plt.colourbar(im2, ax=axes[0,1])
+        plt.colorbar(im2, ax=axes[0,1])
         
         # YZ slice (middle X)
         im3 = axes[1,0].contourf(Y[midX], Z[midX], u[midX],
