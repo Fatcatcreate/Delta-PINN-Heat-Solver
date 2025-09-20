@@ -6,25 +6,27 @@ This repository looks at solving the three dimensional transient heat equation. 
 
 A finite difference solver was also implemented. Both explicit and implicit versions are provided. This gives a baseline to check the results of the neural network. The repository contains the PINN, the finite difference solver, and scripts for visualising results. The visualisations make it easier to see if the solution is sensible.
 
+## Quick Start
+
+The primary way to use this project is through the interactive GUI.
+
+1.  **Clone the repository.**
+2.  **Navigate to the `3d/` directory.**
+3.  **Create and activate a Python virtual environment.**
+4.  **Install the dependencies:** `pip install -r requirements.txt`
+5.  **Run the interactive demo:** `python3 interactiveDemo.py`
+
 ## Table of Contents
 - [1. Introduction](#1-introduction)
 - [2. Mathematical Formulation](#2-mathematical-formulation)
-  - [2.1. The 3D Heat Diffusion Equation](#21-the-3d-heat-diffusion-equation)
-  - [2.2. Physics-Informed Neural Network (PINN) Methodology](#22-physics-informed-neural-network-pinn-methodology)
-  - [2.3. Numerical Solution: The Finite Difference Method (FDM)](#23-numerical-solution-the-finite-difference-method-fdm)
 - [3. Implementation Details](#3-implementation-details)
-  - [3.1. Domain Representation](#31-domain-representation)
-  - [3.2. Collocation Point Sampling](#32-collocation-point-sampling)
-  - [3.3. Visualisation Techniques](#33-visualisation-techniques)
-  - [3.4. Custom Domain Geometries from `.obj` Models](#34-custom-domain-geometries-from-obj-models)
-- [4. Usage and Reproducibility](#4-usage-and-reproducibility)
-  - [The Interactive Demo](#the-interactive-demo)
-- [Gallery](#gallery)
-- [5. Conclusion and Future Work](#5-conclusion-and-future-work)
-- [Project Structure](#project-structure)
-- [Advanced Usage: Command Line Options](#advanced-usage-command-line-options)
-- [Troubleshooting](#troubleshooting)
-- [License](#license)
+- [4. The Interactive Demo](#4-the-interactive-demo)
+- [5. Gallery](#5-gallery)
+- [6. Conclusion and Future Work](#6-conclusion-and-future-work)
+- [7. Project Structure](#7-project-structure)
+- [8. Advanced Usage: Command Line Options](#8-advanced-usage-command-line-options)
+- [9. Troubleshooting](#9-troubleshooting)
+- [10. License](#10-license)
 
 ## 1. Introduction
 
@@ -188,36 +190,22 @@ where $\vec{p}$ is the point on the surface $\mathcal{S}$ closest to $\vec{x}$, 
 
 To make this calculation tractable for a high-resolution grid, a naive search over all mesh triangles is avoided. Instead, the `trimesh` library constructs a Bounding Volume Hierarchy (BVH), a spatial acceleration data structure that allows for the rapid culling of large portions of the mesh from the nearest-point search. This enables an efficient traversal of the mesh's topology to find the closest surface point for each grid point.
 
-The conversion process then proceeds as follows:
-
-1.  **Loading the Mesh:** The `.obj` file is loaded using the `trimesh` library.
-2.  **Voxelization:** The mesh is voxelized into a uniform 3D grid of a specified resolution. The resolution determines the granularity of the resulting SDF.
-3.  **SDF Generation:** For each point in the voxel grid, the signed distance to the nearest point on the mesh surface is computed using the BVH-accelerated search.
-4.  **Heuristic Inversion Check:** A heuristic is applied to detect if the SDF is inverted. It checks the sign of the SDF at the center of the voxel grid. If the sign is positive (indicating "outside"), the entire SDF is inverted. This heuristic works well for convex, solid objects but may fail for hollow or complex geometries.
 
 #### 3.4.3. Practical Recommendations
 
 For best results, it is highly recommended to prepare custom `.obj` models in a 3D modeling software such as Blender before importing them. This includes:
 
 *   **Ensuring Watertightness:** Use tools to fill holes, merge vertices by distance, and remove non-manifold geometry.
+
 *   **Recalculating Normals:** Ensure all normals are pointing outwards.
+
 *   **Simplifying Geometry:** For very complex models, simplifying the mesh can significantly reduce the memory and time required for SDF generation without sacrificing too much accuracy for the simulation.
 
 **Note:** The numerical solver currently only supports the standard, built-in domain shapes (e.g., sphere, cube). Custom domains loaded from `.obj` files are only compatible with the PINN solver.
 
 By adhering to these requirements, you can accurately simulate heat diffusion in a wide variety of complex, custom-defined domains.
 
-## 4. Usage and Reproducibility
-
-The primary way to use this project is through the interactive GUI.
-
-1.  **Clone the repository.**
-2.  **Navigate to the `3d/` directory.**
-3.  **Create and activate a Python virtual environment.**
-4.  **Install the dependencies:** `pip install -r requirements.txt`
-5.  **Run the interactive demo:** `python3 interactiveDemo.py`
-
-### The Interactive Demo
+## 4. The Interactive Demo
 
 Once launched, the interactive demo provides a comprehensive GUI for running simulations and visualizing results. The layout consists of a control panel on the left and a visualization panel on the right.
 
@@ -258,7 +246,7 @@ Once launched, the interactive demo provides a comprehensive GUI for running sim
 
 From the interactive demo, you can configure the domain, add heat sources, train the PINN model, solve for the numerical reference solution, and generate all visualizations.
 
-## Gallery
+## 5. Gallery
 
 Here are some sample visualizations generated by the project:
 
@@ -277,31 +265,32 @@ Here are some sample visualizations generated by the project:
 **Heat Source Configuration**
 ![Configuration of heat sources](3d/visualizations/sources_Sphere.png)
 
-## 5. Conclusion and Future Work
+**Additional Visualizations**
+![Screenshot 1](images/Screenshot%202025-09-20%20at%2013.39.44.png)
+![Screenshot 2](images/Screenshot%202025-09-20%20at%2014.21.21.png)
+![Screenshot 3](images/Screenshot%202025-09-20%20at%2014.25.00.png)
+![Screenshot 4](images/Screenshot%202025-09-20%20at%2014.25.12.png)
+![Screenshot 5](images/Screenshot%202025-09-20%20at%2014.27.16.png)
+
+## 6. Conclusion and Future Work
 
 This project provides a comprehensive framework for solving the 3D transient heat equation using Physics-Informed Neural Networks. The results demonstrate that PINNs are a viable alternative to traditional numerical methods for solving PDEs, especially for problems with complex geometries. Future work could include extending the framework to other types of PDEs, implementing more advanced PINN architectures, and exploring the use of PINNs for inverse problems.
 
-## Project Structure
+## 7. Project Structure
 
-```
-project/
-├── 3d/
-│   ├── deltaPinn3d.py         # Main PINN training script
-│   ├── numericalSolution.py   # Finite difference solver
-│   ├── visualisation.py       # Plotting and animation functions
-│   ├── interactiveDemo.py     # Interactive Tkinter app
-│   ├── domainShapes.py        # SDF domain definitions
-│   ├── convertObj.py          # .obj to SDF conversion
-│   └── requirements.txt       # Dependencies
-├── README.md                  # This file
-└── models/                    # Trained models (.pt files)
-```
+-   `deltaPinn3d.py`: Contains the core implementation of the Physics-Informed Neural Network (PINN) model. This includes the neural network architecture, the loss function definition, and the training loop.
+-   `numericalSolution.py`: Implements the finite difference method (FDM) solver, which is used to generate a reference solution for comparison with the PINN. It supports both explicit and implicit time-stepping schemes.
+-   `visualisation.py`: A suite of tools for visualizing the results of the simulations. It includes functions for plotting 3D isosurfaces, volumetric rendering, creating animations, and comparing the PINN and numerical solutions.
+-   `interactiveDemo.py`: The main entry point for the interactive GUI application. It uses Tkinter to create the user interface and manages the simulation workflow.
+-   `domainShapes.py`: Defines the geometry of the simulation domains using Signed Distance Functions (SDFs). It includes classes for standard shapes like spheres and cubes, as well as custom domains from `.obj` files.
+-   `convertObj.py`: A utility script to convert `.obj` files into a format that can be used by the `domainShapes.py` module.
+-   `requirements.txt`: A list of the Python dependencies required to run the project.
 
-## Advanced Usage: Command Line Options
+## 8. Advanced Usage: Command Line Options
 
 While the interactive demo is the recommended workflow, the individual scripts can be run from the command line for advanced usage or scripting.
 
-### `deltaPinn3d.py`
+### 8.1. `deltaPinn3d.py`
 
 ```bash
 python3 3d/deltaPinn3d.py \
@@ -313,7 +302,7 @@ python3 3d/deltaPinn3d.py \
     --numSources 2
 ```
 
-### `numericalSolution.py`
+### 8.2. `numericalSolution.py`
 
 ```bash
 python3 3d/numericalSolution.py \
@@ -322,7 +311,7 @@ python3 3d/numericalSolution.py \
     --t_final 1.0
 ```
 
-### `visualisation.py`
+### 8.3. `visualisation.py`
 
 ```bash
 python3 3d/visualisation.py \
@@ -331,25 +320,22 @@ python3 3d/visualisation.py \
     --tEval 0.5
 ```
 
-## Troubleshooting
-
+## 9. Troubleshooting
 
 **3D plots not showing up?**
 - The interactive 3D plots (volumetric rendering, isosurfaces, surface heatmaps) require the `plotly` library. If it is not installed, the demo will fall back to 2D slices using Matplotlib. To enable the interactive 3D plots, install Plotly: `pip install plotly`
 
 **Model not converging?**
 - Reduce the learning rate.
-- Increase the number of training epochs.
-- Adjust the weights of the loss terms.
+- Increase the number of training epochs.- Adjust the weights of the loss terms.
 
 **Out of memory?**
 - Reduce the grid resolution (`--nx`).
 - Use a smaller network architecture.
 
 **Slow training?**
-- Use a smaller grid or fewer epochs for quick tests.
-- If you have a supported GPU, you can modify the scripts to use it.
+- Use a smaller grid or fewer epochs for quick tests.- If you have a supported GPU, you can modify the scripts to use it.
 
-## License
+## 10. License
 
 This project is licensed under the MIT License.
