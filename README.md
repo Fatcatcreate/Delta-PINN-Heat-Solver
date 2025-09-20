@@ -6,6 +6,26 @@ This repository looks at solving the three dimensional transient heat equation. 
 
 A finite difference solver was also implemented. Both explicit and implicit versions are provided. This gives a baseline to check the results of the neural network. The repository contains the PINN, the finite difference solver, and scripts for visualising results. The visualisations make it easier to see if the solution is sensible.
 
+## Table of Contents
+- [1. Introduction](#1-introduction)
+- [2. Mathematical Formulation](#2-mathematical-formulation)
+  - [2.1. The 3D Heat Diffusion Equation](#21-the-3d-heat-diffusion-equation)
+  - [2.2. Physics-Informed Neural Network (PINN) Methodology](#22-physics-informed-neural-network-pinn-methodology)
+  - [2.3. Numerical Solution: The Finite Difference Method (FDM)](#23-numerical-solution-the-finite-difference-method-fdm)
+- [3. Implementation Details](#3-implementation-details)
+  - [3.1. Domain Representation](#31-domain-representation)
+  - [3.2. Collocation Point Sampling](#32-collocation-point-sampling)
+  - [3.3. Visualisation Techniques](#33-visualisation-techniques)
+  - [3.4. Custom Domain Geometries from `.obj` Models](#34-custom-domain-geometries-from-obj-models)
+- [4. Usage and Reproducibility](#4-usage-and-reproducibility)
+  - [The Interactive Demo](#the-interactive-demo)
+- [Gallery](#gallery)
+- [5. Conclusion and Future Work](#5-conclusion-and-future-work)
+- [Project Structure](#project-structure)
+- [Advanced Usage: Command Line Options](#advanced-usage-command-line-options)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
 ## 1. Introduction
 
 Partial differential equations appear in many areas of science and engineering. Solving them can be computationally demanding. Standard methods such as finite difference or finite element work well but get expensive in three dimensions or with irregular geometries. PINNs offer an alternative because they do not need large amounts of labelled data. They can also generalise well by directly enforcing the equations.
