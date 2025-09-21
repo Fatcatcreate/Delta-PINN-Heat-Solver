@@ -144,7 +144,8 @@ Similar expressions are used for the $y$ and $z$ derivatives. The time derivativ
 
 *   **Explicit Scheme (Forward Euler):** The temperature at the next time step is calculated explicitly from the values at the current time step. This scheme is computationally efficient but is only conditionally stable. The time step must satisfy the Courant Friedrichs Lewy (CFL) condition:
 
-    $$ \Delta t \le \frac{1}{2\alpha} \left( \frac{1}{(\Delta x)^2} + \frac{1}{(\Delta y)^2} + \frac{1}{(\Delta z)^2} \right)^{-1} $$
+    <img src="https://latex.codecogs.com/svg.latex?\color{White}\Delta%20t%20\le%20\frac{1}{2\alpha}\left(\frac{1}{(\Delta%20x)^2}+\frac{1}{(\Delta%20y)^2}+\frac{1}{(\Delta%20z)^2}\right)^{-1}" />
+
 
 *   **Implicit Scheme (Crank Nicolson):** This scheme is unconditionally stable and allows for larger time steps. It involves solving a sparse linear system at each time step. The Crank Nicolson scheme is a second-order accurate method in time and is generally preferred for its stability and accuracy.
 
@@ -192,7 +193,8 @@ The accuracy and validity of the generated SDF are critically dependent on the t
 
 The conversion from a polygonal mesh to a volumetric SDF is a computationally intensive process that involves determining the shortest distance from every point in a 3D grid to the surface of the mesh. Mathematically, the Signed Distance Function, $SDF(\vec{x})$, for a given point $\vec{x} \in \mathbb{R}^3$ and a mesh surface $\mathcal{S}$, is defined as:
 
-$ SDF(\vec{x}) = \text{sign}(\vec{n}_{\vec{p}} \cdot (\vec{x} - \vec{p})) \cdot \inf_{\vec{p} \in \mathcal{S}} ||\vec{x} - \vec{p}||_2 $
+<img src="https://latex.codecogs.com/svg.latex?\color{White}SDF(\vec{x})=\text{sign}(\vec{n}_{\vec{p}}\cdot(\vec{x}-\vec{p}))\cdot\inf_{\vec{p}\in\mathcal{S}}\|\vec{x}-\vec{p}\|_2" />
+
 
 where $\vec{p}$ is the point on the surface $\mathcal{S}$ closest to $\vec{x}$, and $\vec{n}_{\vec{p}}$ is the surface normal at that point. The sign of the function, which determines whether a point is inside or outside the volume, is given by the dot product of the vector from the closest surface point to the query point and the surface normal.
 
