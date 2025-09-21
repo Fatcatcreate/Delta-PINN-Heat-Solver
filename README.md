@@ -90,7 +90,7 @@ The PDE residual is defined as:
 
 $$ r_{PDE}(\mathbf{x}, t; \theta) = \frac{\partial u_\theta}{\partial t} - \alpha \nabla^2 u_\theta - S(\mathbf{x}, t) $$
 
-The derivatives of the network's output with respect to its inputs are computed using automatic differentiation. The PDE loss is the mean squared error of the residual over a set of collocation points: $${\{(\mathbf{x}_i, t_i)\}}_{i=1}^{N_{PDE}}$$ sampled from the spatio-temporal domain:
+The derivatives of the network's output with respect to its inputs are computed using automatic differentiation. The PDE loss is the mean squared error of the residual over a set of collocation points: $\{\{(\mathbf{x}_i, t_i)\}}_{i=1}^{N_{PDE}}$ sampled from the spatio-temporal domain:
 
 $$ \mathcal{L}_{PDE}(\theta) = \frac{1}{N_{PDE}} \sum_{i=1}^{N_{PDE}} |r_{PDE}(\mathbf{x}_i, t_i; \theta)|^2 $$
 
