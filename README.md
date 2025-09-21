@@ -84,7 +84,7 @@ $$ \mathcal{L}(\theta) = w_{PDE} \mathcal{L}_{PDE}(\theta) + w_{BC} \mathcal{L}_
 
 where $w_{PDE}, w_{BC}, w_{IC}$ are hyperparameters that can be used to balance the different loss terms.
 
-**1. PDE Residual Loss ($$\mathcal{L}_{PDE}$$):**
+**1. PDE Residual Loss ($\mathcal{L}_{PDE}$):**
 
 The PDE residual is defined as:
 
@@ -94,15 +94,15 @@ The derivatives of the network's output with respect to its inputs are computed 
 
 $$ \mathcal{L}_{PDE}(\theta) = \frac{1}{N_{PDE}} \sum_{i=1}^{N_{PDE}} |r_{PDE}(\mathbf{x}_i, t_i; \theta)|^2 $$
 
-**2. Boundary Condition Loss ($$\mathcal{L}_{BC}$$):**
+**2. Boundary Condition Loss ($\mathcal{L}_{BC}$):**
 
 The boundary condition loss is the mean squared error between the network's predictions and the prescribed boundary values over a set of points $${\{(\mathbf{x}_j, t_j)\}}_{j=1}^{N_{BC}}$$ sampled on the boundary $\partial\Omega$:
 
 $$ \mathcal{L}_{BC}(\theta) = \frac{1}{N_{BC}} \sum_{j=1}^{N_{BC}} |u_\theta(\mathbf{x}_j, t_j) - g(\mathbf{x}_j, t_j)|^2 $$
 
-**3. Initial Condition Loss ($$\mathcal{L}_{IC}$$):**
+**3. Initial Condition Loss ($\mathcal{L}_{IC}$):**
 
-The initial condition loss is the mean squared error between the network's predictions and the initial temperature distribution over a set of points $${\{\mathbf{x}_k\}\}}_{k=1}^{N_{IC}}$$ sampled within the domain $\Omega$ at $t=0$:
+The initial condition loss is the mean squared error between the network's predictions and the initial temperature distribution over a set of points $${\{\mathbf{x}_k\}}\}_{k=1}^{N_{IC}}$$ sampled within the domain $\Omega$ at $t=0$:
 
 $$ \mathcal{L}_{IC}(\theta) = \frac{1}{N_{IC}} \sum_{k=1}^{N_{IC}} |u_\theta(\mathbf{x}_k, 0) - u_0(\mathbf{x}_k)|^2 $$
 
