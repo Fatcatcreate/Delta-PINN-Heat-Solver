@@ -105,7 +105,7 @@ $$ \mathcal{L}_{BC}(\theta) = \frac{1}{N_{BC}} \sum_{j=1}^{N_{BC}} |u_\theta(\ma
 
 The initial condition loss is the mean squared error between the network's predictions and the initial temperature distribution over a set of points $$\{\mathbf{x}_k\}_{k=1}^{N_{IC}}$$ sampled within the domain $\Omega$ at $t=0$:
 
-$ \mathcal{L}_{IC}(\theta) = \frac{1}{N_{IC}} \sum_{k=1}^{N_{IC}} |u_{\theta}(\mathbf{x}_{k}, 0) - u_{0}(\mathbf{x}_{k})|^2 $
+$ \mathcal{L}_{IC}(\theta) = \frac{1}{N_{IC}} \sum_{k=1}^{N_{IC}} |u_{\theta}(\mathbf{x}_k, 0) - u_0(\mathbf{x}_k)|^2 $
 
 #### 2.2.3. Optimisation
 
