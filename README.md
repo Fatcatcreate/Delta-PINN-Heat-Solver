@@ -51,8 +51,7 @@ The problem is well-posed when supplemented with an initial condition and approp
 
 **Initial Condition:** The initial temperature distribution is given by:
 
-$$
-u(\mathbf{x}, 0) = u_0(\mathbf{x}), \quad \forall \mathbf{x} \in \Omega
+$$\nu(\mathbf{x}, 0) = u\_0(\mathbf{x}), \quad \forall \mathbf{x} \in \Omega
 $$
 
 **Boundary Conditions:** I impose Dirichlet boundary conditions on the boundary of the domain $\partial\Omega$:
@@ -65,7 +64,7 @@ In the current implementation, I consider homogeneous Dirichlet boundary conditi
 
 #### 2.2.1. Neural Network Ansatz
 
-I approximate the solution $u(\mathbf{x}, t)$ with a deep neural network $u_\theta(\mathbf{x}, t)$, where $\theta$ denotes the set of trainable parameters (weights and biases) of the network. The network is a multilayer perceptron (MLP) that takes a 4-dimensional input $(\mathbf{x}, t)$ and outputs a scalar value representing the temperature.
+I approximate the solution $u(\mathbf{x}, t)$ with a deep neural network $u\_\theta(\mathbf{x}, t)$, where $\theta$ denotes the set of trainable parameters (weights and biases) of the network. The network is a multilayer perceptron (MLP) that takes a 4-dimensional input $(\mathbf{x}, t)$ and outputs a scalar value representing the temperature.
 
 The architecture of the network, implemented in the `DeltaPINN3D` class, incorporates several advanced features to improve its performance:
 
@@ -81,37 +80,37 @@ where $\mathbf{v} = [\mathbf{x}, t]$ and $\mathbf{B}$ is a matrix of fixed rando
 
 The parameters $\theta$ of the neural network are optimised by minimising a composite loss function that enforces the physical constraints of the problem. The loss function is a weighted sum of the mean squared errors of the PDE residual, the boundary conditions, and the initial condition:
 
-$$ \mathcal{L}(\theta) = w_{PDE} \mathcal{L}_{PDE}(\theta) + w_{BC} \mathcal{L}_{BC}(\theta) + w_{IC} \mathcal{L}_{IC}(\theta) $$
+$$ \mathcal{L}(\theta) = w\_{PDE} \mathcal{L}\_PDE(\theta) + w\_{BC} \mathcal{L}\_BC(\theta) + w\_{IC} \mathcal{L}\_IC(\theta) $$
 
-where $w_{PDE}, w_{BC}, w_{IC}$ are hyperparameters that can be used to balance the different loss terms.
+where $w\_{PDE}, w\_{BC}, w\_{IC}$ are hyperparameters that can be used to balance the different loss terms.
 
-**1. PDE Residual Loss ($\mathcal{L}_{PDE}$):**
+**1. PDE Residual Loss ($\mathcal{L}\_PDE$):**
 
 The PDE residual is defined as:
 
-$$ r_{PDE}(\mathbf{x}, t; \theta) = \frac{\partial u_\theta}{\partial t} - \alpha \nabla^2 u_\theta - S(\mathbf{x}, t) $$
+$$ r\_{PDE}(\mathbf{x}, t; \theta) = \frac{\partial u\_\theta}{\partial t} - \alpha \nabla^2 u\_\theta - S(\mathbf{x}, t) $$
 
-The derivatives of the network's output with respect to its inputs are computed using automatic differentiation. The PDE loss is the mean squared error of the residual over a set of collocation points: $\{(\mathbf{x}_{i}, t_{i})\}_{i=1}^{N_{PDE}}$ sampled from the spatio-temporal domain:
+The derivatives of the network\'s output with respect to its inputs are computed using automatic differentiation. The PDE loss is the mean squared error of the residual over a set of collocation points: ${\left\{(\mathbf{x}\_i, t\_i)\right\}}_{i=1}^{N\_{PDE}}$ sampled from the spatio-temporal domain:
 
-$$ \mathcal{L}_{PDE}(\theta) = \frac{1}{N_{PDE}} \sum_{i=1}^{N_{PDE}} |r_{PDE}(\mathbf{x}_i, t_i; \theta)|^2 $$
+$$ \mathcal{L}\_PDE(\theta) = \frac{1}{N\_{PDE}} \sum_{i=1}^{N\_{PDE}} |r\_{PDE}(\mathbf{x}\_i, t\_i; \theta)|^2 $$
 
-**2. Boundary Condition Loss ($\mathcal{L}_{BC}$):**
+**2. Boundary Condition Loss ($\mathcal{L}\_BC$):**
 
-The boundary condition loss is the mean squared error between the network's predictions and the prescribed boundary values over a set of points $$\{(\mathbf{x}_j, t_j)\}_{j=1}^{N_{BC}}$$ sampled on the boundary $\partial\Omega$:
+The boundary condition loss is the mean squared error between the network\'s predictions and the prescribed boundary values over a set of points ${\left\{(\mathbf{x}\_j, t\_j)\right\}}_{j=1}^{N\_{BC}}$ sampled on the boundary $\partial\Omega$:
 
-$$ \mathcal{L}_{BC}(\theta) = \frac{1}{N_{BC}} \sum_{j=1}^{N_{BC}} |u_\theta(\mathbf{x}_j, t_j) - g(\mathbf{x}_j, t_j)|^2 $$
+$$ \mathcal{L}\_BC(\theta) = \frac{1}{N\_{BC}} \sum_{j=1}^{N\_{BC}} |u\_\theta(\mathbf{x}\_j, t\_j) - g(\mathbf{x}\_j, t\_j)|^2 $$
 
-**3. Initial Condition Loss ($\mathcal{L}_{IC}$):**
+**3. Initial Condition Loss ($\mathcal{L}\_IC$):**
 
-The initial condition loss is the mean squared error between the network's predictions and the initial temperature distribution over a set of points $$\{\mathbf{x}_k\}_{k=1}^{N_{IC}}$$ sampled within the domain $\Omega$ at $t=0$:
+The initial condition loss is the mean squared error between the network\'s predictions and the initial temperature distribution over a set of points ${\left\{\mathbf{x}\_k\right\}}_{k=1}^{N\_{IC}}$ sampled within the domain $\Omega$ at $t=0$:
 
-$ \mathcal{L}_{IC}(\theta) = \frac{1}{N_{IC}} \sum_{k=1}^{N_{IC}} |u_{\theta}(\mathbf{x}_k, 0) - u_0(\mathbf{x}_k)|^2 $
+$$ \mathcal{L}\_IC(\theta) = \frac{1}{N\_{IC}} \sum_{k=1}^{N\_{IC}} |u\_\theta(\mathbf{x}\_k, 0) - u\_0(\mathbf{x}\_k)|^2 $$
 
 #### 2.2.3. Optimisation
 
 The optimisation problem consists of finding the optimal parameters $\theta^*$ that minimise the total loss function:
 
-$$ \theta^* = \arg\min_\theta \mathcal{L}(\theta) $$
+$$ \theta^* = \arg\min\_\theta \mathcal{L}(\theta) $$
 
 This is a non-convex optimisation problem that is typically solved using gradient-based optimisation algorithms. My implementation uses the following techniques:
 
@@ -129,7 +128,7 @@ To validate the PINN solutions, I have implemented a numerical solver based on t
 
 #### 2.3.1. Discretisation
 
-The spatial domain is discretised into a uniform Cartesian grid with spacing $(\Delta x, \Delta y, \Delta z)$, and the time domain is discretised into uniform time steps of size $\Delta t$. The temperature at a grid point $(i, j, k)$ at time step $n$ is denoted by $u^n_{i,j,k}$.
+The spatial domain is discretised into a uniform Cartesian grid with spacing $(\Delta x, \Delta y, \Delta z)$, and the time domain is discretised into uniform time steps of size $\Delta t$. The temperature at a grid point $(i, j, k)$ at time step $n$ is denoted by $u^n\_{i,j,k}$.
 
 #### 2.3.2. Finite Difference Schemes
 
@@ -189,11 +188,11 @@ The accuracy and validity of the generated SDF are critically dependent on the t
 
 The conversion from a polygonal mesh to a volumetric SDF is a computationally intensive process that involves determining the shortest distance from every point in a 3D grid to the surface of the mesh. Mathematically, the Signed Distance Function, $SDF(\vec{x})$, for a given point $\vec{x} \in \mathbb{R}^3$ and a mesh surface $\mathcal{S}$, is defined as:
 
-$ SDF(\vec{x}) = \text{sign}(\vec{n}_{\vec{p}} \cdot (\vec{x} - \vec{p})) \cdot \inf_{\vec{p} \in \mathcal{S}} ||\vec{x} - \vec{p}||_2 $
+$ SDF(\vec{x}) = \text{sign}(\vec{n}\_{\vec{p}} \cdot (\vec{x} - \vec{p})) \cdot \inf_{\vec{p} \in \mathcal{S}} ||\vec{x} - \vec{p}||\_2 $
 
-where $\vec{p}$ is the point on the surface $\mathcal{S}$ closest to $\vec{x}$, and $\vec{n}_{\vec{p}}$ is the surface normal at that point. The sign of the function, which determines whether a point is inside or outside the volume, is given by the dot product of the vector from the closest surface point to the query point and the surface normal.
+where $\vec{p}$ is the point on the surface $\mathcal{S}$ closest to $\vec{x}$, and $\vec{n}\_{\vec{p}}$ is the surface normal at that point. The sign of the function, which determines whether a point is inside or outside the volume, is given by the dot product of the vector from the closest surface point to the query point and the surface normal.
 
-To make this calculation tractable for a high-resolution grid, a naive search over all mesh triangles is avoided. Instead, the `trimesh` library constructs a Bounding Volume Hierarchy (BVH), a spatial acceleration data structure that allows for the rapid culling of large portions of the mesh from the nearest-point search. This enables an efficient traversal of the mesh's topology to find the closest surface point for each grid point.
+To make this calculation tractable for a high-resolution grid, a naive search over all mesh triangles is avoided. Instead, the `trimesh` library constructs a Bounding Volume Hierarchy (BVH), a spatial acceleration data structure that allows for the rapid culling of large portions of the mesh from the nearest-point search. This enables an efficient traversal of the mesh\'s topology to find the closest surface point for each grid point.
 
 
 #### 3.4.3. Practical Recommendations
