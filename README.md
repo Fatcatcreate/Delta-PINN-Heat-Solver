@@ -113,7 +113,7 @@ The boundary condition loss is the mean squared error between the network's pred
 \mathcal{L}_{BC}(\theta) = \frac{1}{N_{BC}} \sum_{j=1}^{N_{BC}} |u_\theta(\mathbf{x}_j, t_j) - g(\mathbf{x}_j, t_j)|^2
 ```
 
-**3. Initial Condition Loss ($\mathcal{L}_{IC}$):**
+**3. Initial Condition Loss ($L_{IC}$):**
 
 The initial condition loss is the mean squared error between the network's predictions and the initial temperature distribution over a set of points ${\{\mathbf{x}_k\}}_{k=1}^{N_{IC}}$ sampled within the domain $\Omega$ at $t=0$:
 
